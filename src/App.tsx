@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Zap, Menu, X, Search, Filter, Plus, DollarSign, Users, 
+import {
+  Zap, Menu, X, Search, Filter, Plus, DollarSign, Users,
   Check, Star, ArrowRight, Info, CheckCircle, AlertCircle,
   Grid, Bell, Mail, Briefcase, MapPin, Clock, ChevronDown,
   Twitter, Linkedin
@@ -20,6 +20,8 @@ import DashboardFreelancer from './components/DashboardFreelancer';
 import DashboardAdmin from './components/DashboardAdmin';
 import Profile from './components/Profile';
 import AIAssistant from './components/AIAssistant';
+import ApplyProposal from './components/ApplyProposal';
+import { LogIn } from 'lucide-react';
 
 export default function App() {
   // --- State ---
@@ -69,9 +71,10 @@ export default function App() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [minBudgetFilter, setMinBudgetFilter] = useState('');
   const [experienceFilter, setExperienceFilter] = useState('all');
-  const [selectedProjectForProposal, setSelectedProjectForProposal] = useState<{id: string, title: string} | null>(null);
+  const [selectedProjectForProposal, setSelectedProjectForProposal] = useState<{ id: string, title: string } | null>(null);
   const [viewingProject, setViewingProject] = useState<Project | null>(null);
-  
+  const [projectToApply, setProjectToApply] = useState<Project | null>(null);
+
   // Messaging State
   const [conversations, setConversations] = useState<Conversation[]>([
     {
@@ -170,7 +173,7 @@ export default function App() {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
     const email = (form.elements.namedItem('email') as HTMLInputElement).value;
-    
+
     const user = users.find(u => u.email === email);
     if (user) {
       if (user.status === 'blocked') {
@@ -186,12 +189,37 @@ export default function App() {
     }
   };
 
+  const handleGoogleLogin = () => {
+    // Simulated Google Login
+    const googleUser: User = {
+      id: 'google_' + Date.now(),
+      name: 'Usuario',
+      lastname: 'Google',
+      email: 'user@google.com',
+      type: 'freelancer', // Default to freelancer for new social logins
+      status: 'active'
+    };
+
+    // Simple check if user exists (mocking by email)
+    const existing = users.find(u => u.email === googleUser.email);
+    if (existing) {
+      setCurrentUser(existing);
+    } else {
+      setUsers([...users, googleUser]);
+      setCurrentUser(googleUser);
+    }
+
+    setActiveModal(null);
+    showToast('Sesión iniciada con Google');
+    setActiveSection('explore');
+  };
+
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
     const formData = new FormData(form);
     const type = formData.get('type') as UserType;
-    
+
     const newUser: User = {
       id: 'u' + Date.now(),
       name: formData.get('name') as string,
@@ -223,12 +251,16 @@ export default function App() {
       budget: formData.get('budget') as string,
       description: formData.get('description') as string,
       skills: formData.get('skills') as string,
-      duration: formData.get('duration') as string,
+      duration: formData.get('projectDuration') as string, // Map duration to projectDuration selection
       experience: formData.get('experience') as string,
       creatorId: currentUser.id,
       creatorName: currentUser.channel || currentUser.name,
       createdAt: new Date().toISOString(),
-      status: 'active'
+      status: 'active',
+      image: formData.get('image') as string || undefined,
+      exampleLinks: (formData.get('exampleLinks') as string)?.split(',').map(l => l.trim()).filter(Boolean),
+      experienceTime: formData.get('experienceTime') as string || undefined,
+      projectDuration: formData.get('projectDuration') as any
     };
 
     setProjects([newProject, ...projects]);
@@ -267,10 +299,10 @@ export default function App() {
     if (!proposal) return;
 
     setProposals(proposals.map(p => p.id === propId ? { ...p, status } : p));
-    
+
     if (status === 'accepted') {
       // Update project status to 'in-progress'
-      setProjects(projects.map(p => p.id === proposal.projectId ? { ...p, status: 'in-progress' } : p)); 
+      setProjects(projects.map(p => p.id === proposal.projectId ? { ...p, status: 'in-progress' } : p));
       showToast('Propuesta aceptada. El proyecto está ahora en progreso.');
     } else {
       showToast('Propuesta rechazada');
@@ -303,7 +335,7 @@ export default function App() {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
     const formData = new FormData(form);
-    
+
     const newAnnouncement: Announcement = {
       id: 'a' + Date.now(),
       title: formData.get('title') as string,
@@ -322,18 +354,27 @@ export default function App() {
   };
 
   const handleUpdateUser = (updatedUser: User) => {
+    const previousType = currentUser?.type;
+    const typeChanged = previousType && previousType !== updatedUser.type;
+
     // Update local state
     setCurrentUser(updatedUser);
-    
+
     // Update users list
     const updatedUsers = users.map(u => u.id === updatedUser.id ? updatedUser : u);
     setUsers(updatedUsers);
-    
+
     // Persist
     localStorage.setItem('cm_currentUser', JSON.stringify(updatedUser));
     localStorage.setItem('cm_users', JSON.stringify(updatedUsers));
-    
-    showToast('Perfil actualizado con éxito');
+
+    if (typeChanged) {
+      const newDashboard = updatedUser.type === 'creator' ? 'dashboard-creator' : 'dashboard-freelancer';
+      showToast(`Rol cambiado a ${updatedUser.type === 'creator' ? 'Creador' : 'Freelancer'} ✓`, 'success');
+      setActiveSection(newDashboard);
+    } else {
+      showToast('Perfil actualizado con éxito');
+    }
   };
 
   // --- Blog Actions ---
@@ -388,7 +429,7 @@ export default function App() {
 
     // Check if conversation exists
     const existingConv = conversations.find(c => c.participants.includes(currentUser.id) && c.participants.includes(targetUserId));
-    
+
     if (existingConv) {
       setActiveConversationId(existingConv.id);
       setActiveSection('inbox');
@@ -412,9 +453,9 @@ export default function App() {
   // --- Render Helpers ---
   const filteredProjects = projects.filter(p => {
     const matchesCat = categoryFilter === 'all' || p.category === categoryFilter;
-    const matchesSearch = p.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          p.description.toLowerCase().includes(searchTerm.toLowerCase());
-    
+    const matchesSearch = p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.description.toLowerCase().includes(searchTerm.toLowerCase());
+
     // Budget filter (simple check if project budget string contains numbers >= minBudget)
     // This is a basic implementation. For real apps, budget should be structured.
     let matchesBudget = true;
@@ -438,8 +479,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#0a0a0a] text-white font-sans">
-      
-      <Navigation 
+
+      <Navigation
         currentUser={currentUser}
         activeSection={activeSection}
         setActiveSection={setActiveSection}
@@ -452,7 +493,7 @@ export default function App() {
 
       {/* --- Main Content --- */}
       <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
-        
+
         {/* INBOX */}
         {activeSection === 'inbox' && currentUser && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-6xl mx-auto min-h-[80vh] grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -469,16 +510,16 @@ export default function App() {
                     const otherUserId = conv.participants.find(p => p !== currentUser.id) || '';
                     const otherUserName = conv.participantNames[otherUserId] || 'Usuario';
                     const isActive = activeConversationId === conv.id;
-                    
+
                     return (
-                      <div 
-                        key={conv.id} 
+                      <div
+                        key={conv.id}
                         onClick={() => setActiveConversationId(conv.id)}
                         className={`p-4 border-b border-white/5 cursor-pointer hover:bg-white/5 transition ${isActive ? 'bg-white/10 border-l-4 border-l-indigo-500' : ''}`}
                       >
                         <div className="flex justify-between items-start mb-1">
                           <h4 className={`font-semibold ${isActive ? 'text-white' : 'text-gray-300'}`}>{otherUserName}</h4>
-                          <span className="text-xs text-gray-500">{new Date(conv.lastMessageTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                          <span className="text-xs text-gray-500">{new Date(conv.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                         <p className="text-sm text-gray-400 truncate">{conv.lastMessage || 'Nueva conversación'}</p>
                       </div>
@@ -496,7 +537,7 @@ export default function App() {
                     const activeConv = conversations.find(c => c.id === activeConversationId);
                     const otherUserId = activeConv?.participants.find(p => p !== currentUser.id) || '';
                     const otherUserName = activeConv?.participantNames[otherUserId] || 'Usuario';
-                    
+
                     return (
                       <>
                         <div className="p-4 border-b border-white/10 bg-white/5 flex items-center justify-between">
@@ -521,7 +562,7 @@ export default function App() {
                                 <div className={`max-w-[70%] p-3 rounded-2xl ${isMe ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white/10 text-gray-200 rounded-tl-none'}`}>
                                   <p>{msg.text}</p>
                                   <p className={`text-[10px] mt-1 ${isMe ? 'text-indigo-200' : 'text-gray-500'} text-right`}>
-                                    {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                   </p>
                                 </div>
                               </div>
@@ -535,18 +576,18 @@ export default function App() {
                         </div>
 
                         <div className="p-4 border-t border-white/10 bg-white/5">
-                          <form 
+                          <form
                             onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
                             className="flex gap-2"
                           >
-                            <input 
-                              type="text" 
+                            <input
+                              type="text"
                               value={newMessageText}
                               onChange={(e) => setNewMessageText(e.target.value)}
-                              placeholder="Escribe un mensaje..." 
+                              placeholder="Escribe un mensaje..."
                               className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition"
                             />
-                            <button 
+                            <button
                               type="submit"
                               disabled={!newMessageText.trim()}
                               className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white p-3 rounded-xl transition"
@@ -580,16 +621,16 @@ export default function App() {
                   <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse"></span>
                   <span className="text-sm font-medium text-indigo-400">Más de 1,200 creadores conectados</span>
                 </div>
-                
+
                 <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold leading-tight">
                   Encuentra al <span className="gradient-text">talento perfecto</span> para tu canal
                 </h1>
-                
+
                 <p className="text-xl text-gray-400 max-w-lg leading-relaxed">
-                  Conecta con editores, diseñadores, guionistas y más. 
+                  Conecta con editores, diseñadores, guionistas y más.
                   Publica tu proyecto y recibe propuestas de los mejores profesionales del contenido.
                 </p>
-                
+
                 <div className="flex flex-col sm:flex-row gap-4">
                   <button onClick={() => currentUser ? setActiveSection('dashboard-creator') : setActiveModal('register')} className="btn-primary px-8 py-4 rounded-full text-lg font-semibold text-white flex items-center justify-center gap-2">
                     <span>Publicar un Proyecto</span>
@@ -613,7 +654,7 @@ export default function App() {
                   </p>
                 </div>
               </div>
-              
+
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl blur-3xl opacity-20 animate-pulse"></div>
                 <div className="relative glass-card rounded-3xl p-6 space-y-4 border border-white/10">
@@ -669,7 +710,7 @@ export default function App() {
                   Explore 114K+ Talent <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
-              
+
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {[
                   { name: 'Sarah Jenkins', role: 'Creative Director', img: 'https://i.pravatar.cc/150?img=5', status: 'red' },
@@ -703,7 +744,7 @@ export default function App() {
                       </div>
                     </div>
                     <div className="text-gray-600 group-hover:text-white transition-colors flex items-center gap-2">
-                      <button 
+                      <button
                         onClick={(e) => {
                           e.stopPropagation();
                           startConversation(`t${i}`, talent.name);
@@ -723,7 +764,7 @@ export default function App() {
 
         {/* JOBS BOARD (EXPLORE) */}
         {activeSection === 'explore' && (
-          <Explore 
+          <Explore
             currentUser={currentUser}
             projects={projects}
             setActiveModal={setActiveModal}
@@ -732,12 +773,16 @@ export default function App() {
             setSelectedProjectForProposal={setSelectedProjectForProposal}
             showToast={showToast}
             onViewProfile={handleViewProfile}
+            onApply={(project) => {
+              setProjectToApply(project);
+              setActiveSection('apply-proposal');
+            }}
           />
         )}
 
         {/* TALENT BOARD */}
         {activeSection === 'talent' && (
-          <Talent 
+          <Talent
             setActiveModal={setActiveModal}
             startConversation={startConversation}
             onViewProfile={handleViewProfile}
@@ -746,7 +791,7 @@ export default function App() {
 
         {/* DASHBOARD CREATOR */}
         {activeSection === 'dashboard-creator' && currentUser?.type === 'creator' && (
-          <DashboardCreator 
+          <DashboardCreator
             currentUser={currentUser}
             projects={projects}
             proposals={proposals}
@@ -760,7 +805,7 @@ export default function App() {
 
         {/* DASHBOARD FREELANCER */}
         {activeSection === 'dashboard-freelancer' && currentUser?.type === 'freelancer' && (
-          <DashboardFreelancer 
+          <DashboardFreelancer
             currentUser={currentUser}
             proposals={proposals}
             projects={projects}
@@ -770,7 +815,7 @@ export default function App() {
 
         {/* DASHBOARD ADMIN */}
         {activeSection === 'dashboard-admin' && currentUser?.type === 'admin' && (
-          <DashboardAdmin 
+          <DashboardAdmin
             currentUser={currentUser}
             users={users}
             projects={projects}
@@ -788,17 +833,17 @@ export default function App() {
 
         {/* PROFILE (Current User) */}
         {activeSection === 'profile' && currentUser && (
-          <Profile 
-            currentUser={currentUser} 
-            onUpdateUser={handleUpdateUser} 
+          <Profile
+            currentUser={currentUser}
+            onUpdateUser={handleUpdateUser}
             isOwnProfile={true}
           />
         )}
 
         {/* USER PROFILE (Viewing Other) */}
         {activeSection === 'user-profile' && viewingProfileUser && (
-          <Profile 
-            currentUser={viewingProfileUser} 
+          <Profile
+            currentUser={viewingProfileUser}
             isOwnProfile={currentUser?.id === viewingProfileUser.id}
             startConversation={startConversation}
           />
@@ -810,6 +855,20 @@ export default function App() {
         {/* BLOG */}
         {activeSection === 'blog' && <Blog blogPosts={blogPosts} />}
 
+        {/* APPLY PROPOSAL SECTION */}
+        {activeSection === 'apply-proposal' && projectToApply && (
+          <ApplyProposal
+            project={projectToApply}
+            currentUser={currentUser}
+            onBack={() => {
+              setViewingProject(projectToApply);
+              setActiveSection('explore');
+            }}
+            onSubmit={handleSubmitProposal}
+            showToast={showToast}
+          />
+        )}
+
       </main>
 
       {/* Footer */}
@@ -818,11 +877,11 @@ export default function App() {
       {/* --- Modals --- */}
       <AnimatePresence>
         {activeModal && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex justify-center items-center p-4"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
               className="glass-card rounded-3xl p-8 w-full max-w-md relative border border-white/20 max-h-[90vh] overflow-y-auto"
             >
@@ -834,13 +893,29 @@ export default function App() {
               {activeModal === 'login' && (
                 <>
                   <h3 className="text-2xl font-bold mb-2 text-center">Bienvenido de vuelta</h3>
-                  <form onSubmit={handleLogin} className="space-y-4 mt-6">
-                    <div>
-                      <label className="block text-sm font-medium mb-2 text-gray-300">Email</label>
-                      <input type="email" name="email" required className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-500" placeholder="demo@demo.com" />
+                  <div className="space-y-4 mt-6">
+                    <button
+                      onClick={handleGoogleLogin}
+                      className="w-full flex items-center justify-center gap-3 py-3 rounded-xl border border-white/10 hover:bg-white/5 transition font-medium"
+                    >
+                      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+                      Continuar con Google
+                    </button>
+
+                    <div className="flex items-center gap-4 py-2">
+                      <div className="h-px flex-1 bg-white/10"></div>
+                      <span className="text-xs text-gray-500 uppercase font-bold">o con email</span>
+                      <div className="h-px flex-1 bg-white/10"></div>
                     </div>
-                    <button type="submit" className="btn-primary w-full py-3 rounded-xl font-semibold text-white mt-6">Iniciar Sesión</button>
-                  </form>
+
+                    <form onSubmit={handleLogin} className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-2 text-gray-300">Email</label>
+                        <input type="email" name="email" required className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-500" placeholder="demo@demo.com" />
+                      </div>
+                      <button type="submit" className="btn-primary w-full py-3 rounded-xl font-semibold text-white mt-2">Iniciar Sesión</button>
+                    </form>
+                  </div>
                   <div className="mt-6 text-center text-sm text-gray-400">
                     ¿No tienes cuenta? <button onClick={() => setActiveModal('register')} className="text-indigo-400 hover:text-indigo-300 font-medium">Regístrate</button>
                   </div>
@@ -874,45 +949,59 @@ export default function App() {
               )}
 
               {/* Create Announcement Modal */}
-        <AnimatePresence>
-          {activeModal === 'createAnnouncement' && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-[#111111] border border-white/10 rounded-2xl p-8 w-full max-w-md relative">
-                <button onClick={() => setActiveModal(null)} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X className="w-6 h-6" /></button>
-                <h2 className="text-2xl font-bold mb-6">Nuevo Anuncio</h2>
-                <form onSubmit={handleCreateAnnouncement} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Título del Anuncio</label>
-                    <input name="title" required className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition" placeholder="Ej. Mantenimiento programado" />
+              <AnimatePresence>
+                {activeModal === 'createAnnouncement' && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-[#111111] border border-white/10 rounded-2xl p-8 w-full max-w-md relative">
+                      <button onClick={() => setActiveModal(null)} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X className="w-6 h-6" /></button>
+                      <h2 className="text-2xl font-bold mb-6">Nuevo Anuncio</h2>
+                      <form onSubmit={handleCreateAnnouncement} className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-1">Título del Anuncio</label>
+                          <input name="title" required className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition" placeholder="Ej. Mantenimiento programado" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-1">Contenido</label>
+                          <textarea name="content" required rows={4} className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition resize-none" placeholder="Detalles del anuncio..."></textarea>
+                        </div>
+                        <button type="submit" className="w-full btn-primary py-3 rounded-xl font-bold text-white mt-6">Publicar Anuncio</button>
+                      </form>
+                    </motion.div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Contenido</label>
-                    <textarea name="content" required rows={4} className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition resize-none" placeholder="Detalles del anuncio..."></textarea>
-                  </div>
-                  <button type="submit" className="w-full btn-primary py-3 rounded-xl font-bold text-white mt-6">Publicar Anuncio</button>
-                </form>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
+                )}
+              </AnimatePresence>
 
-        {/* Create Project Modal */}
+              {/* Create Project Modal */}
               {activeModal === 'createProject' && (
                 <>
                   <h3 className="text-2xl font-bold mb-2">Publicar Proyecto</h3>
                   <form onSubmit={handleCreateProject} className="space-y-4 mt-6">
                     <input type="text" name="title" required placeholder="Título del Proyecto" className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-500" />
                     <div className="grid grid-cols-2 gap-4">
-                      <select name="category" className="input-field w-full px-4 py-3 rounded-xl text-white bg-gray-900">
+                      <select name="category" className="input-field w-full px-4 py-3 rounded-xl text-white bg-gray-900 border border-white/10">
                         <option value="editing">Edición</option>
                         <option value="thumbnail">Miniaturas</option>
                         <option value="script">Guiones</option>
+                        <option value="other">Otros</option>
                       </select>
-                      <input type="text" name="budget" required placeholder="Presupuesto" className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-500" />
+                      <input type="text" name="budget" required placeholder="Presupuesto (Ej: $100 - $300)" className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-500" />
                     </div>
-                    <textarea name="description" required rows={3} placeholder="Descripción" className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-500 resize-none"></textarea>
-                    <input type="text" name="skills" required placeholder="Habilidades (sep. por comas)" className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-500" />
-                    <button type="submit" className="btn-primary w-full py-3 rounded-xl font-semibold text-white mt-6">Publicar</button>
+                    <textarea name="description" required rows={3} placeholder="Descripción detallada del proyecto" className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-500 resize-none"></textarea>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <input type="text" name="experienceTime" placeholder="Experiencia (Ej: 2+ años)" className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-500" />
+                      <select name="projectDuration" className="input-field w-full px-4 py-3 rounded-xl text-white bg-gray-900 border border-white/10">
+                        <option value="short">Corto Plazo (&lt; 1 mes)</option>
+                        <option value="medium">Mediano Plazo (1-3 meses)</option>
+                        <option value="long">Largo Plazo (&gt; 3 meses)</option>
+                      </select>
+                    </div>
+
+                    <input type="url" name="image" placeholder="URL de Imagen de Referencia (Opcional)" className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-500" />
+                    <input type="text" name="exampleLinks" placeholder="Enlaces de ejemplo (sep. por comas)" className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-500" />
+                    <input type="text" name="skills" required placeholder="Habilidades (Ej: Premiere, After Effects)" className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-500" />
+
+                    <button type="submit" className="btn-primary w-full py-3 rounded-xl font-bold text-white mt-6 shadow-lg shadow-indigo-500/20">Publicar Proyecto</button>
                   </form>
                 </>
               )}
@@ -947,17 +1036,17 @@ export default function App() {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium mb-2 text-gray-300">Presupuesto Mínimo ($)</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         value={minBudgetFilter}
                         onChange={(e) => setMinBudgetFilter(e.target.value)}
-                        placeholder="Ej: 100" 
-                        className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-500" 
+                        placeholder="Ej: 100"
+                        className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-500"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-2 text-gray-300">Nivel de Experiencia</label>
-                      <select 
+                      <select
                         value={experienceFilter}
                         onChange={(e) => setExperienceFilter(e.target.value)}
                         className="input-field w-full px-4 py-3 rounded-xl text-white bg-gray-900"
@@ -969,18 +1058,18 @@ export default function App() {
                         <option value="expert">Experto</option>
                       </select>
                     </div>
-                    <button 
-                      onClick={() => setActiveModal(null)} 
+                    <button
+                      onClick={() => setActiveModal(null)}
                       className="btn-primary w-full py-3 rounded-xl font-semibold text-white mt-6"
                     >
                       Aplicar Filtros
                     </button>
-                    <button 
+                    <button
                       onClick={() => {
                         setMinBudgetFilter('');
                         setExperienceFilter('all');
                         setActiveModal(null);
-                      }} 
+                      }}
                       className="w-full py-3 rounded-xl font-medium text-gray-400 hover:text-white mt-2"
                     >
                       Limpiar Filtros
@@ -997,7 +1086,7 @@ export default function App() {
       {/* --- Toast --- */}
       <AnimatePresence>
         {toast && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}
             className={`fixed bottom-4 right-4 z-50 glass-card p-4 rounded-xl border-l-4 ${toast.type === 'success' ? 'border-green-500 text-green-400' : 'border-red-500 text-red-400'} flex items-center gap-3 shadow-lg`}
           >

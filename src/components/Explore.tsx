@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Filter, Briefcase, MapPin, ArrowRight, DollarSign, Clock, CheckCircle, Mail, Twitter, Linkedin, Plus, Bookmark } from 'lucide-react';
 import { Project, User } from '../types';
@@ -9,18 +9,21 @@ interface ExploreProps {
   setActiveModal: (modal: string | null) => void;
   setViewingProject: (project: Project | null) => void;
   viewingProject: Project | null;
-  setSelectedProjectForProposal: (project: {id: string, title: string} | null) => void;
+  setSelectedProjectForProposal: (project: { id: string, title: string } | null) => void;
   showToast: (msg: string, type?: 'success' | 'error') => void;
+  onViewProfile: (user: User) => void;
+  onApply: (project: Project) => void;
 }
 
-export default function Explore({ 
-  currentUser, 
-  projects, 
-  setActiveModal, 
-  setViewingProject, 
+export default function Explore({
+  currentUser,
+  projects,
+  setActiveModal,
+  setViewingProject,
   viewingProject,
   setSelectedProjectForProposal,
-  showToast
+  showToast,
+  onApply
 }: ExploreProps) {
   const [activeTab, setActiveTab] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -29,11 +32,106 @@ export default function Explore({
   const [minBudgetFilter, setMinBudgetFilter] = useState('');
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
+  // External Jobs States
+  const [externalLanguage, setExternalLanguage] = useState<'all' | 'es'>('all');
+  const [isLoadingExternal, setIsLoadingExternal] = useState(false);
+  const [externalError, setExternalError] = useState<string | null>(null);
+  const [redditAfterToken, setRedditAfterToken] = useState<string | null>(null);
+  const [subredditIndex, setSubredditIndex] = useState(0);
+  const [realJobs, setRealJobs] = useState<{
+    id: string;
+    platform: string;
+    author: string;
+    avatar: string;
+    text: string;
+    date: string;
+    type: string;
+    url: string;
+    lang: string;
+  }[]>([]);
+
+  const SUBREDDITS = [
+    { name: 'FindVideoEditors', lang: 'en' },
+    { name: 'forhire', lang: 'en' },
+    { name: 'socialmediajobs', lang: 'en' },
+    { name: 'VFX', lang: 'en' },
+    { name: 'trabajo_independiente', lang: 'es' },
+    { name: 'freelance', lang: 'en' },
+  ];
+
+  const JOB_KEYWORDS = ['hiring', 'editor', 'busco', 'looking for', 'freelance', 'video editor', 'thumbnail', 'se busca', 'editing', 'contrato', 'remote'];
+
+  const fetchRealJobs = useCallback(async (after?: string | null, subIndex?: number) => {
+    setIsLoadingExternal(true);
+    setExternalError(null);
+
+    const currentSubIndex = subIndex !== undefined ? subIndex : subredditIndex;
+    const sub = SUBREDDITS[currentSubIndex % SUBREDDITS.length];
+    const afterParam = after ? `&after=${after}` : '';
+    const redditUrl = `https://www.reddit.com/r/${sub.name}/new.json?limit=25${afterParam}`;
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(redditUrl)}`;
+
+    try {
+      const res = await fetch(proxyUrl);
+      if (!res.ok) throw new Error('Error de red');
+      const data = await res.json();
+      const parsed = JSON.parse(data.contents);
+      const posts = parsed?.data?.children ?? [];
+
+      const filtered = posts
+        .filter((p: any) => {
+          const title = (p.data.title || '').toLowerCase();
+          const selftext = (p.data.selftext || '').toLowerCase();
+          const combined = `${title} ${selftext}`;
+          return JOB_KEYWORDS.some(kw => combined.includes(kw));
+        })
+        .map((p: any) => ({
+          id: p.data.id,
+          platform: `Reddit (r/${sub.name})`,
+          author: p.data.author,
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(p.data.author)}&background=random&color=fff&size=40`,
+          text: p.data.title,
+          date: new Date(p.data.created_utc * 1000).toISOString(),
+          type: sub.name === 'trabajo_independiente' ? 'Trabajo Remoto' : sub.name === 'VFX' ? 'VFX / Motion' : 'Video Editor',
+          url: `https://www.reddit.com${p.data.permalink}`,
+          lang: sub.lang,
+        }));
+
+      const newAfter = parsed?.data?.after ?? null;
+      setRedditAfterToken(newAfter);
+      setSubredditIndex(prev => (newAfter ? prev : (prev + 1) % SUBREDDITS.length));
+      setRealJobs(prev => {
+        const existingIds = new Set(prev.map(j => j.id));
+        return [...prev, ...filtered.filter((f: any) => !existingIds.has(f.id))];
+      });
+    } catch (err) {
+      console.error('Error fetching Reddit jobs:', err);
+      setExternalError('No se pudo conectar con las redes sociales. Intenta de nuevo.');
+    } finally {
+      setIsLoadingExternal(false);
+    }
+  }, [subredditIndex, externalLanguage]);
+
+  useEffect(() => {
+    if (activeTab === 'social' && realJobs.length === 0 && !isLoadingExternal) {
+      fetchRealJobs(null, 0);
+    }
+  }, [activeTab]);
+
+  const handleLoadMoreExternal = () => {
+    fetchRealJobs(redditAfterToken);
+  };
+
+  const displayedSocialPosts = realJobs.filter(post => {
+    const matchesLang = externalLanguage === 'all' || post.lang === externalLanguage;
+    return matchesLang;
+  });
+
   const filteredProjects = projects.filter(p => {
     const matchesCat = categoryFilter === 'all' || p.category === categoryFilter;
-    const matchesSearch = p.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          p.description.toLowerCase().includes(searchTerm.toLowerCase());
-    
+    const matchesSearch = p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.description.toLowerCase().includes(searchTerm.toLowerCase());
+
     let matchesBudget = true;
     if (minBudgetFilter) {
       const budgetNums = p.budget.match(/\d+/g);
@@ -44,7 +142,6 @@ export default function Explore({
     }
 
     const matchesExp = experienceFilter === 'all' || p.experience === experienceFilter;
-
     return matchesCat && matchesSearch && matchesBudget && matchesExp;
   });
 
@@ -52,7 +149,7 @@ export default function Explore({
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-5xl mx-auto">
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <button 
+          <button
             onClick={() => setViewingProject(null)}
             className="mb-8 flex items-center gap-2 text-gray-400 hover:text-white transition group"
           >
@@ -66,11 +163,11 @@ export default function Explore({
             {/* Header Section */}
             <div className="relative p-8 md:p-12 border-b border-white/5 overflow-hidden">
               <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
-              
+
               <div className="relative z-10 flex flex-col md:flex-row gap-8 items-start justify-between">
                 <div className="flex gap-6 items-start">
                   <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-4xl font-bold text-white shadow-lg shadow-indigo-500/20 shrink-0">
-                    {viewingProject.creatorName.substring(0,2).toUpperCase()}
+                    {viewingProject.creatorName.substring(0, 2).toUpperCase()}
                   </div>
                   <div>
                     <div className="flex items-center gap-3 mb-3">
@@ -92,7 +189,7 @@ export default function Explore({
                 </div>
 
                 <div className="flex flex-col gap-3 w-full md:w-auto shrink-0">
-                  <button 
+                  <button
                     onClick={() => {
                       if (!currentUser) {
                         showToast('Inicia sesión para aplicar', 'error');
@@ -100,8 +197,7 @@ export default function Explore({
                       } else if (currentUser.type === 'creator') {
                         showToast('Los creadores no pueden aplicar', 'error');
                       } else {
-                        setSelectedProjectForProposal({id: viewingProject.id, title: viewingProject.title});
-                        setActiveModal('proposal');
+                        onApply(viewingProject);
                       }
                     }}
                     className="w-full md:w-auto btn-primary px-8 py-4 rounded-xl font-bold text-white text-lg shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2"
@@ -126,13 +222,17 @@ export default function Explore({
                   <div className="flex items-center gap-2 text-gray-500 text-xs uppercase tracking-wider font-semibold mb-2">
                     <Briefcase className="w-4 h-4" /> Experiencia
                   </div>
-                  <div className="font-bold text-white text-lg capitalize">{viewingProject.experience}</div>
+                  <div className="font-bold text-white text-lg capitalize">{viewingProject.experienceTime || viewingProject.experience}</div>
                 </div>
                 <div className="bg-black/20 rounded-2xl p-4 border border-white/5">
                   <div className="flex items-center gap-2 text-gray-500 text-xs uppercase tracking-wider font-semibold mb-2">
                     <Clock className="w-4 h-4" /> Duración
                   </div>
-                  <div className="font-bold text-white text-lg capitalize">{viewingProject.duration}</div>
+                  <div className="font-bold text-white text-lg capitalize">
+                    {viewingProject.projectDuration === 'short' ? 'Corto Plazo' :
+                      viewingProject.projectDuration === 'medium' ? 'Mediano Plazo' :
+                        viewingProject.projectDuration === 'long' ? 'Largo Plazo' : viewingProject.duration}
+                  </div>
                 </div>
                 <div className="bg-black/20 rounded-2xl p-4 border border-white/5">
                   <div className="flex items-center gap-2 text-gray-500 text-xs uppercase tracking-wider font-semibold mb-2">
@@ -141,6 +241,12 @@ export default function Explore({
                   <div className="font-bold text-white text-lg">Remoto</div>
                 </div>
               </div>
+
+              {viewingProject.image && (
+                <div className="mt-12 rounded-2xl overflow-hidden border border-white/10">
+                  <img src={viewingProject.image} alt={viewingProject.title} className="w-full h-auto object-cover max-h-[400px]" />
+                </div>
+              )}
             </div>
 
             {/* Body Section */}
@@ -150,8 +256,8 @@ export default function Explore({
                 <div className="text-gray-300 leading-relaxed space-y-6 text-lg">
                   <p>{viewingProject.description}</p>
                   <p>
-                    Buscamos a un profesional talentoso que pueda dar vida a ideas creativas. 
-                    Trabajarás en estrecha colaboración con nuestro equipo de contenido para asegurar 
+                    Buscamos a un profesional talentoso que pueda dar vida a ideas creativas.
+                    Trabajarás en estrecha colaboración con nuestro equipo de contenido para asegurar
                     resultados de alta calidad que resuenen con nuestra audiencia.
                   </p>
                   <h4 className="text-xl font-bold text-white mt-8 mb-4">Responsabilidades:</h4>
@@ -161,6 +267,19 @@ export default function Explore({
                     <li>Adaptarse a los comentarios e iterar rápidamente para cumplir con los plazos.</li>
                     <li>Mantener la consistencia de la marca en todos los entregables.</li>
                   </ul>
+
+                  {viewingProject.exampleLinks && viewingProject.exampleLinks.length > 0 && (
+                    <>
+                      <h4 className="text-xl font-bold text-white mt-8 mb-4">Ejemplos de Referencia:</h4>
+                      <div className="flex flex-col gap-2">
+                        {viewingProject.exampleLinks.map((link, idx) => (
+                          <a key={idx} href={link} target="_blank" rel="noreferrer" className="text-indigo-400 hover:text-indigo-300 flex items-center gap-2 transition-colors">
+                            <Plus className="w-4 h-4 rotate-45" /> {link}
+                          </a>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -193,12 +312,12 @@ export default function Explore({
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-7xl mx-auto">
       <div className="flex flex-col lg:flex-row gap-8">
-        
+
         {/* Sidebar Filters */}
         <div className="w-full lg:w-64 shrink-0 space-y-6">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-2xl font-bold text-white">Explorar</h2>
-            <button 
+            <button
               onClick={() => setShowMobileFilters(!showMobileFilters)}
               className="lg:hidden p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white transition flex items-center gap-2 text-sm font-medium"
             >
@@ -208,9 +327,9 @@ export default function Explore({
 
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-            <input 
-              type="text" 
-              placeholder="Buscar proyectos..." 
+            <input
+              type="text"
+              placeholder="Buscar proyectos..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-[#111111] border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition"
@@ -222,7 +341,11 @@ export default function Explore({
               <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Categoría</h3>
               <div className="space-y-2">
                 {['all', 'editing', 'thumbnail', 'script'].map(cat => (
-                  <label key={cat} className="flex items-center gap-3 cursor-pointer group">
+                  <label
+                    key={cat}
+                    className="flex items-center gap-3 cursor-pointer group"
+                    onClick={() => setCategoryFilter(cat)}
+                  >
                     <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${categoryFilter === cat ? 'bg-indigo-600 border-indigo-600' : 'border-white/20 group-hover:border-white/40'}`}>
                       {categoryFilter === cat && <CheckCircle className="w-3 h-3 text-white" />}
                     </div>
@@ -238,7 +361,11 @@ export default function Explore({
               <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Experiencia</h3>
               <div className="space-y-2">
                 {['all', 'junior', 'mid', 'senior', 'expert'].map(exp => (
-                  <label key={exp} className="flex items-center gap-3 cursor-pointer group">
+                  <label
+                    key={exp}
+                    className="flex items-center gap-3 cursor-pointer group"
+                    onClick={() => setExperienceFilter(exp)}
+                  >
                     <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${experienceFilter === exp ? 'bg-indigo-600 border-indigo-600' : 'border-white/20 group-hover:border-white/40'}`}>
                       {experienceFilter === exp && <CheckCircle className="w-3 h-3 text-white" />}
                     </div>
@@ -254,17 +381,17 @@ export default function Explore({
               <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Presupuesto Mínimo</h3>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   value={minBudgetFilter}
                   onChange={(e) => setMinBudgetFilter(e.target.value)}
-                  placeholder="Ej: 100" 
+                  placeholder="Ej: 100"
                   className="w-full bg-[#111111] border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 transition text-sm"
                 />
               </div>
             </div>
 
-            <button 
+            <button
               onClick={() => setShowMobileFilters(false)}
               className="w-full lg:hidden btn-primary py-3 rounded-xl font-bold text-white mt-4"
             >
@@ -278,28 +405,28 @@ export default function Explore({
           {/* Tabs & Actions Header */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-white/10 pb-4">
             <div className="flex items-center gap-6">
-              <button 
+              <button
                 onClick={() => setActiveTab('all')}
-                className={`text-sm font-medium pb-4 -mb-4 border-b-2 transition-colors ${activeTab === 'all' ? 'border-indigo-500 text-white' : 'border-transparent text-gray-400 hover:text-gray-300'}`}
+                className={`text-sm font-medium pb-4 -mb-4 border-b-2 transition-colors ${activeTab === 'all' ? 'border-indigo-500 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
               >
                 Todos los Proyectos
               </button>
-              <button 
-                onClick={() => setActiveTab('recommended')}
-                className={`text-sm font-medium pb-4 -mb-4 border-b-2 transition-colors ${activeTab === 'recommended' ? 'border-indigo-500 text-white' : 'border-transparent text-gray-400 hover:text-gray-300'}`}
+              <button
+                onClick={() => setActiveTab('social')}
+                className={`text-sm font-medium pb-4 -mb-4 border-b-2 transition-colors ${activeTab === 'social' ? 'border-indigo-500 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
               >
-                Recomendados
+                Oportunidades Externas
               </button>
-              <button 
+              <button
                 onClick={() => setActiveTab('saved')}
-                className={`text-sm font-medium pb-4 -mb-4 border-b-2 transition-colors ${activeTab === 'saved' ? 'border-indigo-500 text-white' : 'border-transparent text-gray-400 hover:text-gray-300'}`}
+                className={`text-sm font-medium pb-4 -mb-4 border-b-2 transition-colors ${activeTab === 'saved' ? 'border-indigo-500 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
               >
                 Guardados
               </button>
             </div>
-            
+
             {currentUser?.type === 'creator' && (
-              <button 
+              <button
                 onClick={() => setActiveModal('createProject')}
                 className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition flex items-center gap-2 text-sm font-bold shadow-lg shadow-indigo-500/20"
               >
@@ -309,79 +436,188 @@ export default function Explore({
             )}
           </div>
 
-          {/* Job List */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProjects.length > 0 ? filteredProjects.map(p => (
-              <div 
-                key={p.id} 
-                onClick={() => setViewingProject(p)}
-                className="bg-[#111111] rounded-2xl p-6 border border-white/5 hover:border-indigo-500/30 transition-all group cursor-pointer flex flex-col h-full"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-600/20 border border-white/10 flex items-center justify-center text-lg font-bold text-white shrink-0 group-hover:scale-105 transition-transform">
-                    {p.creatorName.substring(0,2).toUpperCase()}
-                  </div>
-                  {p.status === 'active' && <span className="px-2 py-1 rounded text-[10px] font-bold bg-green-500/20 text-green-400 uppercase tracking-wider">Nuevo</span>}
-                </div>
-                
-                <div className="mb-4 flex-1">
-                  <h3 className="font-bold text-white text-lg mb-2 line-clamp-2 group-hover:text-indigo-400 transition-colors">
-                    {p.title}
-                  </h3>
-                  
-                  <div className="flex items-center gap-4 text-sm text-gray-400 mb-4">
-                    <span className="font-medium text-gray-300 truncate max-w-[100px]">{p.creatorName}</span>
-                    <div className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Remoto</div>
-                    <div className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> 2h</div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {p.skills.split(',').slice(0, 3).map((s, i) => (
-                      <span key={i} className="text-xs bg-white/5 px-2.5 py-1 rounded-md text-gray-300 border border-white/5">
-                        {s.trim()}
-                      </span>
-                    ))}
-                    {p.skills.split(',').length > 3 && (
-                      <span className="text-xs bg-white/5 px-2.5 py-1 rounded-md text-gray-500 border border-white/5">
-                        +{p.skills.split(',').length - 3}
-                      </span>
-                    )}
-                  </div>
+          {activeTab === 'social' && (
+            <div className="flex flex-wrap items-center justify-between gap-4 py-4 px-6 bg-white/5 rounded-2xl border border-white/5 mb-8">
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center gap-1.5 text-xs text-green-400 font-bold uppercase tracking-wider">
+                    <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block"></span>
+                    Datos en tiempo real · Reddit
+                  </span>
                 </div>
 
-                <div className="pt-4 border-t border-white/5 flex items-center justify-between mt-auto">
-                  <div>
-                    <div className="font-bold text-white">{p.budget}</div>
-                    <div className="text-xs text-gray-500 capitalize">{p.duration}</div>
-                  </div>
-                  <button className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/10 group-hover:border-indigo-500/50 group-hover:bg-indigo-500/10 group-hover:text-indigo-400">
-                    <ArrowRight className="w-4 h-4" />
+                <div className="h-4 w-px bg-white/10 hidden sm:block"></div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setExternalLanguage('all')}
+                    className={`text-xs font-bold uppercase tracking-wider transition ${externalLanguage === 'all' ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300'}`}
+                  >
+                    Todos
+                  </button>
+                  <button
+                    onClick={() => setExternalLanguage('es')}
+                    className={`text-xs font-bold uppercase tracking-wider transition ${externalLanguage === 'es' ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300'}`}
+                  >
+                    Solo Español
                   </button>
                 </div>
               </div>
-            )) : (
-              <div className="col-span-full text-center py-20 bg-[#111111] rounded-2xl border border-white/5">
-                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
-                  <Search className="w-8 h-8 text-gray-500" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-2">No se encontraron proyectos</h3>
-                <p className="text-gray-400 mb-6 max-w-md mx-auto">No hay proyectos que coincidan con tus filtros actuales. Intenta ajustar tu búsqueda.</p>
-                <button 
-                  onClick={() => {
-                    setSearchTerm(''); 
-                    setCategoryFilter('all');
-                    setExperienceFilter('all');
-                    setMinBudgetFilter('');
-                  }} 
-                  className="text-indigo-400 hover:text-indigo-300 font-medium"
+
+              <div className="text-xs text-gray-500 font-medium">
+                Encontrados: <span className="text-white font-bold">{displayedSocialPosts.length}</span> resultados
+              </div>
+            </div>
+          )}
+
+          {/* Job List */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {activeTab === 'all' ? (
+              filteredProjects.length > 0 ? filteredProjects.map(p => (
+                <div
+                  key={p.id}
+                  onClick={() => setViewingProject(p)}
+                  className="bg-[#111111] rounded-2xl p-6 border border-white/5 hover:border-indigo-500/30 transition-all group cursor-pointer flex flex-col h-full"
                 >
-                  Limpiar todos los filtros
-                </button>
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-600/20 border border-white/10 flex items-center justify-center text-lg font-bold text-white shrink-0 group-hover:scale-105 transition-transform">
+                      {p.creatorName.substring(0, 2).toUpperCase()}
+                    </div>
+                    {p.status === 'active' && <span className="px-2 py-1 rounded text-[10px] font-bold bg-green-500/20 text-green-400 uppercase tracking-wider">Nuevo</span>}
+                  </div>
+
+                  <div className="mb-4 flex-1">
+                    <h3 className="font-bold text-white text-lg mb-2 line-clamp-2 group-hover:text-indigo-400 transition-colors">
+                      {p.title}
+                    </h3>
+
+                    <div className="flex items-center gap-4 text-sm text-gray-400 mb-4">
+                      <span className="font-medium text-gray-300 truncate max-w-[100px]">{p.creatorName}</span>
+                      <div className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Remoto</div>
+                      <div className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> 2h</div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {p.skills.split(',').slice(0, 3).map((s, i) => (
+                        <span key={i} className="text-xs bg-white/5 px-2.5 py-1 rounded-md text-gray-300 border border-white/5">
+                          {s.trim()}
+                        </span>
+                      ))}
+                      {p.skills.split(',').length > 3 && (
+                        <span className="text-xs bg-white/5 px-2.5 py-1 rounded-md text-gray-500 border border-white/5">
+                          +{p.skills.split(',').length - 3}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-white/5 flex items-center justify-between mt-auto">
+                    <div>
+                      <div className="font-bold text-white">{p.budget}</div>
+                      <div className="text-xs text-gray-500 capitalize">{p.duration}</div>
+                    </div>
+                    <button className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/10 group-hover:border-indigo-500/50 group-hover:bg-indigo-500/10 group-hover:text-indigo-400">
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )) : (
+                <div className="col-span-full text-center py-20 bg-[#111111] rounded-2xl border border-white/5">
+                  <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
+                    <Search className="w-8 h-8 text-gray-500" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2">No se encontraron proyectos</h3>
+                  <p className="text-gray-400 mb-6 max-w-md mx-auto">No hay proyectos que coincidan con tus filtros actuales. Intenta ajustar tu búsqueda.</p>
+                  <button
+                    onClick={() => {
+                      setSearchTerm('');
+                      setCategoryFilter('all');
+                      setExperienceFilter('all');
+                      setMinBudgetFilter('');
+                    }}
+                    className="text-indigo-400 hover:text-indigo-300 font-medium"
+                  >
+                    Limpiar todos los filtros
+                  </button>
+                </div>
+              )
+            ) : activeTab === 'social' ? (
+              <>
+                {displayedSocialPosts.length > 0 ? displayedSocialPosts.map(post => (
+                  <div
+                    key={post.id}
+                    className="bg-[#111111] rounded-2xl p-6 border border-white/5 hover:border-blue-500/30 transition-all group flex flex-col h-full"
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center gap-3">
+                        <img src={post.avatar} alt={post.author} className="w-10 h-10 rounded-full border border-white/10" />
+                        <div>
+                          <h4 className="font-bold text-white text-sm">{post.author}</h4>
+                          <p className="text-[10px] text-blue-400 font-bold uppercase">{post.platform}</p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-1 rounded text-[9px] font-bold bg-blue-500/20 text-blue-400 uppercase tracking-wider">Reciente</span>
+                    </div>
+
+                    <p className="text-sm text-gray-300 mb-4 flex-1 line-clamp-4 italic">
+                      "{post.text}"
+                    </p>
+
+                    <div className="pt-4 border-t border-white/5 flex items-center justify-between mt-auto">
+                      <div>
+                        <div className="font-bold text-white text-xs">{post.type}</div>
+                        <div className="text-[10px] text-gray-500">{new Date(post.date).toLocaleDateString()}</div>
+                      </div>
+                      <a
+                        href={post.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-bold transition"
+                      >
+                        Ver Post
+                      </a>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="col-span-full text-center py-20 bg-[#111111] rounded-2xl border border-white/5">
+                    <h3 className="text-xl font-bold text-white mb-2">No hay publicaciones recientes</h3>
+                  </div>
+                )}
+
+                <div className="col-span-full flex flex-col items-center justify-center mt-12 py-8 border-t border-white/5">
+                  <div className="text-gray-500 text-sm mb-4 font-medium italic">
+                    {isLoadingExternal ? 'Escaneando redes sociales en busca de nuevas vacantes...' : '¿Buscas algo más específico?'}
+                  </div>
+                  <button
+                    onClick={handleLoadMoreExternal}
+                    disabled={isLoadingExternal}
+                    className={`px-8 py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-base transition-all shadow-xl shadow-blue-500/20 flex items-center gap-3 ${isLoadingExternal ? 'opacity-70 cursor-wait' : 'hover:scale-105 active:scale-95'}`}
+                  >
+                    {isLoadingExternal ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        Buscando más oportunidades...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="w-5 h-5" />
+                        Cargar más resultados
+                      </>
+                    )}
+                  </button>
+                  <p className="mt-4 text-[10px] text-gray-600 uppercase tracking-widest font-bold">
+                    Actualizado en tiempo real • 2026
+                  </p>
+                </div>
+              </>
+            ) : (
+              <div className="col-span-full text-center py-20 bg-[#111111] rounded-2xl border border-white/5">
+                <p className="text-gray-400">Esta sección estará disponible pronto.</p>
               </div>
             )}
           </div>
         </div>
       </div>
-    </motion.div>
+    </motion.div >
   );
 }

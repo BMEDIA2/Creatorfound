@@ -39,9 +39,9 @@ export default function DashboardCreator({
   ];
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }} 
-      animate={{ opacity: 1, y: 0 }} 
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
       className="max-w-7xl mx-auto px-4 py-8"
     >
       {/* Header Section */}
@@ -52,8 +52,8 @@ export default function DashboardCreator({
           </h1>
           <p className="text-gray-400 text-lg">Gestiona tus proyectos y encuentra el talento perfecto.</p>
         </div>
-        <button 
-          onClick={() => setActiveModal('createProject')} 
+        <button
+          onClick={() => setActiveModal('createProject')}
           className="group px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2"
         >
           <div className="p-1 bg-white/20 rounded-lg group-hover:rotate-90 transition-transform duration-300">
@@ -62,7 +62,7 @@ export default function DashboardCreator({
           <span>Publicar Nuevo Proyecto</span>
         </button>
       </div>
-      
+
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         {stats.map((stat, index) => (
@@ -75,7 +75,7 @@ export default function DashboardCreator({
           </div>
         ))}
       </div>
-      
+
       <div className="grid lg:grid-cols-3 gap-8">
         {/* Main Content - Projects List */}
         <div className="lg:col-span-2 space-y-8">
@@ -98,16 +98,22 @@ export default function DashboardCreator({
                           <div className="flex items-center gap-4 text-sm text-gray-400">
                             <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {new Date(p.createdAt).toLocaleDateString()}</span>
                             <span className="flex items-center gap-1"><DollarSign className="w-4 h-4" /> {p.budget}</span>
+                            {p.projectDuration && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-4 h-4" />
+                                {p.projectDuration === 'short' ? 'Corto' : p.projectDuration === 'medium' ? 'Medio' : 'Largo'}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-bold border border-white/5
-                          ${p.status === 'active' ? 'bg-green-500/10 text-green-400' : 
-                            p.status === 'in-progress' ? 'bg-blue-500/10 text-blue-400' : 
-                            p.status === 'completed' ? 'bg-purple-500/10 text-purple-400' : 
-                            'bg-gray-500/10 text-gray-400'}`}>
-                          {p.status === 'active' ? 'ACTIVO' : 
-                           p.status === 'in-progress' ? 'EN PROGRESO' : 
-                           p.status === 'completed' ? 'COMPLETADO' : 'CERRADO'}
+                          ${p.status === 'active' ? 'bg-green-500/10 text-green-400' :
+                            p.status === 'in-progress' ? 'bg-blue-500/10 text-blue-400' :
+                              p.status === 'completed' ? 'bg-purple-500/10 text-purple-400' :
+                                'bg-gray-500/10 text-gray-400'}`}>
+                          {p.status === 'active' ? 'ACTIVO' :
+                            p.status === 'in-progress' ? 'EN PROGRESO' :
+                              p.status === 'completed' ? 'COMPLETADO' : 'CERRADO'}
                         </span>
                       </div>
 
@@ -125,7 +131,7 @@ export default function DashboardCreator({
                         )}
                       </div>
                     </div>
-                    
+
                     {/* Proposals Section */}
                     <div className="p-6 bg-black/20">
                       <div className="flex items-center justify-between mb-4">
@@ -154,16 +160,16 @@ export default function DashboardCreator({
                                 {prop.price}
                               </span>
                             </div>
-                            
+
                             <p className="text-sm text-gray-400 mb-4 line-clamp-2 pl-13 border-l-2 border-white/10 pl-3 ml-2">
                               {prop.coverLetter}
                             </p>
-                            
+
                             <div className="flex justify-between items-center pt-2 border-t border-white/5">
                               <a href={prop.portfolio} target="_blank" rel="noreferrer" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
                                 Ver Portafolio <ArrowRight className="w-3 h-3" />
                               </a>
-                              
+
                               {prop.status === 'pending' ? (
                                 <div className="flex gap-2">
                                   <button onClick={() => updateProposalStatus(prop.id, 'rejected')} className="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-xs font-semibold hover:bg-red-500/20 transition">
@@ -207,12 +213,12 @@ export default function DashboardCreator({
             )}
           </div>
         </div>
-        
+
         {/* Sidebar */}
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-[#111111] border border-white/5 rounded-3xl p-6 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-purple-900/20 to-transparent"></div>
-            
+
             <div className="relative z-10 flex flex-col items-center text-center">
               <div className="w-24 h-24 rounded-3xl bg-[#1a1a1a] border-4 border-[#111111] shadow-xl mb-4 overflow-hidden flex items-center justify-center">
                 {currentUser.avatar ? (
@@ -221,10 +227,10 @@ export default function DashboardCreator({
                   <span className="text-3xl font-bold text-white">{currentUser.name[0]}</span>
                 )}
               </div>
-              
+
               <h3 className="text-xl font-bold text-white">{currentUser.channel || currentUser.name}</h3>
               <p className="text-purple-400 font-medium mb-6">Creador de Contenido</p>
-              
+
               <div className="w-full space-y-3">
                 <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5">
                   <span className="text-sm text-gray-400">Proyectos</span>

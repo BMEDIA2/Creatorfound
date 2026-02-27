@@ -33,39 +33,39 @@ export default function Navigation({
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
                   <Zap className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-xl font-bold tracking-tight">CreatorMatch</span>
+                <span className="text-xl font-bold tracking-tight">creatorfounds</span>
               </div>
-              
+
               {currentUser && (
                 <div className="hidden md:flex items-center gap-6">
-                  <button 
-                    onClick={() => setActiveSection('explore')} 
+                  <button
+                    onClick={() => setActiveSection('explore')}
                     className={`text-sm font-medium transition ${activeSection === 'explore' ? 'text-white' : 'text-gray-400 hover:text-white'}`}
                   >
-                    Jobs
+                    Trabajos
                   </button>
-                  <button 
-                    onClick={() => setActiveSection('talent')} 
+                  <button
+                    onClick={() => setActiveSection('talent')}
                     className={`text-sm font-medium transition ${activeSection === 'talent' ? 'text-white' : 'text-gray-400 hover:text-white'}`}
                   >
-                    Talent
+                    Talento
                   </button>
-                  <button 
-                    onClick={() => setActiveSection('blog')} 
+                  <button
+                    onClick={() => setActiveSection('blog')}
                     className={`text-sm font-medium transition ${activeSection === 'blog' ? 'text-white' : 'text-gray-400 hover:text-white'}`}
                   >
                     Blog
                   </button>
-                  <button 
-                    onClick={() => setActiveSection('how-it-works')} 
+                  <button
+                    onClick={() => setActiveSection('how-it-works')}
                     className={`text-sm font-medium transition ${activeSection === 'how-it-works' ? 'text-white' : 'text-gray-400 hover:text-white'}`}
                   >
-                    How It Works
+                    Cómo Funciona
                   </button>
                 </div>
               )}
             </div>
-            
+
             <div className="hidden md:flex items-center gap-4">
               {!currentUser ? (
                 <>
@@ -82,15 +82,15 @@ export default function Navigation({
                 <div className="flex items-center gap-4">
                   <button className="p-2 text-gray-400 hover:text-white transition"><Grid className="w-5 h-5" /></button>
                   <button className="p-2 text-gray-400 hover:text-white transition"><Bell className="w-5 h-5" /></button>
-                  <button 
+                  <button
                     onClick={() => setActiveSection('inbox')}
                     className={`p-2 transition ${activeSection === 'inbox' ? 'text-white' : 'text-gray-400 hover:text-white'}`}
                   >
                     <Mail className="w-5 h-5" />
                   </button>
-                  
+
                   <div className="h-6 w-px bg-white/10 mx-2"></div>
-                  
+
                   <div className="relative group">
                     <button className="flex items-center gap-2 focus:outline-none">
                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-sm font-bold text-white">
@@ -99,19 +99,19 @@ export default function Navigation({
                     </button>
                     {/* Dropdown Menu */}
                     <div className="absolute right-0 mt-2 w-48 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-lg py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-right z-50">
-                      <button 
+                      <button
                         onClick={() => setActiveSection(currentUser.type === 'admin' ? 'dashboard-admin' : currentUser.type === 'creator' ? 'dashboard-creator' : 'dashboard-freelancer')}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/5 hover:text-white"
                       >
                         {currentUser.type === 'admin' ? 'Panel de Administración' : 'Mi Panel'}
                       </button>
-                      <button 
+                      <button
                         onClick={() => setActiveSection('profile')}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/5 hover:text-white"
                       >
                         Mi Perfil
                       </button>
-                      <button 
+                      <button
                         onClick={handleLogout}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/5 hover:text-white"
                       >
@@ -122,13 +122,13 @@ export default function Navigation({
                 </div>
               )}
             </div>
-            
+
             <button className="md:hidden text-white" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
         </div>
-        
+
         {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="md:hidden glass-card border-t border-white/10">

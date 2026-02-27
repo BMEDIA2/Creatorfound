@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { User, PortfolioItem, Client, Review } from '../types';
-import { Youtube, Instagram, Linkedin, Globe, Edit2, Save, X, Camera, Twitter, Video, Plus, Trash2, Star, CheckCircle, ExternalLink, Play, Trophy, Briefcase } from 'lucide-react';
+import { Youtube, Instagram, Linkedin, Globe, Edit2, Save, X, Camera, Twitter, Video, Plus, Trash2, Star, CheckCircle, ExternalLink, Play, Trophy, Briefcase, MessageSquare, RefreshCw } from 'lucide-react';
 
 interface ProfileProps {
   currentUser: User;
   onUpdateUser?: (user: User) => void;
   isOwnProfile?: boolean;
+  startConversation?: (userId: string, userName: string) => void;
 }
 
-export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true }: ProfileProps) {
+export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true, startConversation }: ProfileProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<User>(currentUser);
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -45,7 +46,7 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
       comment: newReview.comment,
       date: new Date().toLocaleDateString()
     };
-    
+
     // In a real app, this would call an API to add the review to the user's profile
     // For now, we just update the local state to simulate it
     setFormData({ ...formData, reviews: [...(formData.reviews || []), review] });
@@ -92,7 +93,7 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
 
   const updatePortfolioItem = (id: string, field: keyof PortfolioItem, value: string) => {
     let updatedItems = formData.portfolio || [];
-    
+
     if (field === 'url') {
       // Auto-generate thumbnail if URL is YouTube and thumbnail is empty
       const thumbnail = getYoutubeThumbnail(value);
@@ -100,7 +101,7 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
     } else {
       updatedItems = updatedItems.map(p => p.id === id ? { ...p, [field]: value } : p);
     }
-    
+
     setFormData({ ...formData, portfolio: updatedItems });
   };
 
@@ -145,9 +146,9 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
   };
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }} 
-      animate={{ opacity: 1, y: 0 }} 
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
       className="max-w-5xl mx-auto px-4 py-8"
     >
       {/* Profile Completion Guide */}
@@ -164,8 +165,8 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
             <div className="bg-gradient-to-r from-indigo-500 to-purple-600 h-2.5 rounded-full transition-all duration-1000" style={{ width: `${completionPercentage}%` }}></div>
           </div>
           <p className="text-sm text-gray-400 relative z-10">
-            {completionPercentage < 100 
-              ? 'Completa tu perfil para aumentar tu visibilidad y ganar la confianza de la comunidad.' 
+            {completionPercentage < 100
+              ? 'Completa tu perfil para aumentar tu visibilidad y ganar la confianza de la comunidad.'
               : '¡Excelente! Tu perfil está completo y listo para destacar.'}
           </p>
         </div>
@@ -190,7 +191,7 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                 )}
               </div>
               {isEditing && (
-                <button 
+                <button
                   className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl cursor-pointer"
                   onClick={() => {
                     const url = prompt('Ingresa la URL de tu imagen de perfil:');
@@ -207,24 +208,24 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
               {isEditing ? (
                 <div className="space-y-3">
                   <div className="flex gap-3">
-                    <input 
-                      type="text" 
-                      value={formData.name} 
+                    <input
+                      type="text"
+                      value={formData.name}
                       onChange={(e) => handleChange('name', e.target.value)}
                       className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white font-bold text-xl w-full focus:border-indigo-500 outline-none"
                       placeholder="Nombre"
                     />
-                    <input 
-                      type="text" 
-                      value={formData.lastname} 
+                    <input
+                      type="text"
+                      value={formData.lastname}
                       onChange={(e) => handleChange('lastname', e.target.value)}
                       className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white font-bold text-xl w-full focus:border-indigo-500 outline-none"
                       placeholder="Apellido"
                     />
                   </div>
-                  <input 
-                    type="text" 
-                    value={formData.specialty || ''} 
+                  <input
+                    type="text"
+                    value={formData.specialty || ''}
                     onChange={(e) => handleChange('specialty', e.target.value)}
                     className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-gray-300 w-full focus:border-indigo-500 outline-none"
                     placeholder="Especialidad (ej. Editor de Video)"
@@ -233,13 +234,21 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
               ) : (
                 <div>
                   <h1 className="text-3xl font-bold text-white mb-1">{formData.name} {formData.lastname}</h1>
-                  <p className="text-indigo-400 font-medium text-lg">{formData.specialty || (formData.type === 'creator' ? 'Creador de Contenido' : 'Freelancer')}</p>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <p className="text-indigo-400 font-medium text-lg">{formData.specialty || (formData.type === 'creator' ? 'Creador de Contenido' : 'Freelancer')}</p>
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider border ${formData.type === 'creator'
+                        ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                        : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                      }`}>
+                      {formData.type === 'creator' ? '🎬 Creador' : '💼 Freelancer'}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               {isOwnProfile ? (
                 isEditing ? (
                   <>
@@ -251,9 +260,25 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                     </button>
                   </>
                 ) : (
-                  <button onClick={() => setIsEditing(true)} className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium transition flex items-center gap-2 border border-white/10">
-                    <Edit2 className="w-4 h-4" /> Editar Perfil
-                  </button>
+                  <>
+                    <button onClick={() => setIsEditing(true)} className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium transition flex items-center gap-2 border border-white/10">
+                      <Edit2 className="w-4 h-4" /> Editar Perfil
+                    </button>
+                    {formData.type !== 'admin' && (
+                      <button
+                        onClick={() => {
+                          const newType = formData.type === 'creator' ? 'freelancer' : 'creator';
+                          const updated = { ...formData, type: newType as 'creator' | 'freelancer' };
+                          setFormData(updated);
+                          if (onUpdateUser) onUpdateUser(updated);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600/30 to-blue-600/30 hover:from-purple-600/50 hover:to-blue-600/50 text-white font-medium transition flex items-center gap-2 border border-purple-500/30 hover:border-purple-500/60"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        Cambiar a {formData.type === 'creator' ? 'Freelancer' : 'Creador'}
+                      </button>
+                    )}
+                  </>
                 )
               ) : (
                 <button onClick={() => startConversation && startConversation(currentUser.id, currentUser.name)} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition flex items-center gap-2 shadow-lg shadow-indigo-500/20">
@@ -272,8 +297,8 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                   Sobre Mí
                 </h3>
                 {isEditing ? (
-                  <textarea 
-                    value={formData.description || ''} 
+                  <textarea
+                    value={formData.description || ''}
                     onChange={(e) => handleChange('description', e.target.value)}
                     className="w-full h-32 bg-white/5 border border-white/10 rounded-xl p-4 text-gray-300 focus:border-indigo-500 outline-none resize-none"
                     placeholder="Cuéntanos sobre ti, tu experiencia y lo que te apasiona..."
@@ -296,29 +321,29 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                       </button>
                     )}
                   </div>
-                  
+
                   <div className="grid sm:grid-cols-2 gap-4">
                     {formData.portfolio?.map((item) => (
                       <div key={item.id} className="group relative bg-[#1a1a1a] rounded-xl overflow-hidden border border-white/5 hover:border-indigo-500/30 transition-all">
                         {isEditing ? (
                           <div className="p-4 space-y-3">
-                            <input 
-                              type="text" 
-                              value={item.title} 
+                            <input
+                              type="text"
+                              value={item.title}
                               onChange={(e) => updatePortfolioItem(item.id, 'title', e.target.value)}
                               className="w-full bg-black/20 border border-white/10 rounded px-2 py-1 text-white text-sm"
                               placeholder="Título del Proyecto"
                             />
-                            <input 
-                              type="text" 
-                              value={item.url} 
+                            <input
+                              type="text"
+                              value={item.url}
                               onChange={(e) => updatePortfolioItem(item.id, 'url', e.target.value)}
                               className="w-full bg-black/20 border border-white/10 rounded px-2 py-1 text-gray-400 text-xs"
                               placeholder="URL del Video (YouTube/Vimeo)"
                             />
-                            <input 
-                              type="text" 
-                              value={item.thumbnail || ''} 
+                            <input
+                              type="text"
+                              value={item.thumbnail || ''}
                               onChange={(e) => updatePortfolioItem(item.id, 'thumbnail', e.target.value)}
                               className="w-full bg-black/20 border border-white/10 rounded px-2 py-1 text-gray-400 text-xs"
                               placeholder="URL de Miniatura (Opcional)"
@@ -379,30 +404,30 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                       </button>
                     )}
                   </div>
-                  
+
                   <div className="space-y-4">
                     {formData.reviews?.map((review) => (
                       <div key={review.id} className="bg-[#1a1a1a] p-6 rounded-xl border border-white/5">
                         {isEditing ? (
                           <div className="space-y-3">
                             <div className="flex gap-2">
-                              <input 
-                                type="text" 
-                                value={review.clientName} 
+                              <input
+                                type="text"
+                                value={review.clientName}
                                 onChange={(e) => updateReview(review.id, 'clientName', e.target.value)}
                                 className="flex-1 bg-black/20 border border-white/10 rounded px-2 py-1 text-white text-sm"
                                 placeholder="Nombre del Cliente"
                               />
-                              <input 
-                                type="number" 
+                              <input
+                                type="number"
                                 min="1" max="5"
-                                value={review.rating} 
+                                value={review.rating}
                                 onChange={(e) => updateReview(review.id, 'rating', parseInt(e.target.value))}
                                 className="w-16 bg-black/20 border border-white/10 rounded px-2 py-1 text-white text-sm"
                               />
                             </div>
-                            <textarea 
-                              value={review.comment} 
+                            <textarea
+                              value={review.comment}
                               onChange={(e) => updateReview(review.id, 'comment', e.target.value)}
                               className="w-full bg-black/20 border border-white/10 rounded px-2 py-1 text-gray-300 text-sm"
                               placeholder="Comentario"
@@ -445,32 +470,30 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                   <div className="absolute -top-4 -right-4 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                     <Trophy className="w-24 h-24 text-yellow-500" />
                   </div>
-                  
+
                   <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 relative z-10">Reputación</h3>
-                  
+
                   <div className="relative z-10 space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-3xl font-bold text-white">{formData.reputation.score}</p>
                         <p className="text-xs text-gray-400">Puntaje de Reputación</p>
                       </div>
-                      <div className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                        formData.reputation.level === 'Top Rated' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
+                      <div className={`px-3 py-1 rounded-full text-xs font-bold border ${formData.reputation.level === 'Top Rated' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
                         formData.reputation.level === 'Expert' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
-                        formData.reputation.level === 'Rising Talent' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
-                        'bg-gray-500/20 text-gray-400 border-gray-500/30'
-                      }`}>
+                          formData.reputation.level === 'Rising Talent' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
+                            'bg-gray-500/20 text-gray-400 border-gray-500/30'
+                        }`}>
                         {formData.reputation.level}
                       </div>
                     </div>
 
                     <div className="w-full bg-black/40 rounded-full h-2 overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full ${
-                          formData.reputation.score >= 90 ? 'bg-yellow-500' :
+                      <div
+                        className={`h-full rounded-full ${formData.reputation.score >= 90 ? 'bg-yellow-500' :
                           formData.reputation.score >= 70 ? 'bg-green-500' :
-                          'bg-gray-500'
-                        }`} 
+                            'bg-gray-500'
+                          }`}
                         style={{ width: `${formData.reputation.score}%` }}
                       ></div>
                     </div>
@@ -487,14 +510,14 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
               {formData.type !== 'admin' && (
                 <div className="bg-[#1a1a1a] rounded-2xl p-6 border border-white/5">
                   <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Habilidades y Categorías</h3>
-                  
+
                   <div className="space-y-6">
                     <div>
                       <h4 className="text-white font-medium mb-2 text-sm">Categorías</h4>
                       {isEditing ? (
-                        <input 
-                          type="text" 
-                          value={formData.categories?.join(', ') || ''} 
+                        <input
+                          type="text"
+                          value={formData.categories?.join(', ') || ''}
                           onChange={(e) => handleChange('categories', e.target.value.split(',').map(s => s.trim()))}
                           className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-gray-300 text-sm focus:border-indigo-500 outline-none"
                           placeholder="Ej. Edición, Diseño, Guion"
@@ -514,9 +537,9 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                     <div>
                       <h4 className="text-white font-medium mb-2 text-sm">Habilidades Técnicas</h4>
                       {isEditing ? (
-                        <input 
-                          type="text" 
-                          value={formData.skills?.join(', ') || ''} 
+                        <input
+                          type="text"
+                          value={formData.skills?.join(', ') || ''}
                           onChange={(e) => handleChange('skills', e.target.value.split(',').map(s => s.trim()))}
                           className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-gray-300 text-sm focus:border-indigo-500 outline-none"
                           placeholder="Ej. Premiere Pro, Photoshop"
@@ -547,15 +570,15 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                       </button>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     {formData.clients?.map((client) => (
                       <div key={client.id} className="flex items-center justify-between group">
                         {isEditing ? (
                           <div className="flex gap-2 w-full">
-                            <input 
-                              type="text" 
-                              value={client.name} 
+                            <input
+                              type="text"
+                              value={client.name}
                               onChange={(e) => updateClient(client.id, e.target.value)}
                               className="flex-1 bg-black/20 border border-white/10 rounded px-2 py-1 text-white text-sm"
                             />
@@ -586,15 +609,15 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
               {/* Socials */}
               <div className="bg-[#1a1a1a] rounded-2xl p-6 border border-white/5">
                 <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Redes Sociales</h3>
-                
+
                 <div className="space-y-4">
                   {/* YouTube */}
                   <div className="group">
                     {isEditing ? (
                       <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5 focus-within:border-red-500/50 transition-colors">
                         <Youtube className="w-5 h-5 text-red-500 shrink-0" />
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           value={formData.socialLinks?.youtube || ''}
                           onChange={(e) => handleSocialChange('youtube', e.target.value)}
                           placeholder="Canal de YouTube"
@@ -618,8 +641,8 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                     {isEditing ? (
                       <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5 focus-within:border-pink-500/50 transition-colors">
                         <Video className="w-5 h-5 text-pink-500 shrink-0" />
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           value={formData.socialLinks?.tiktok || ''}
                           onChange={(e) => handleSocialChange('tiktok', e.target.value)}
                           placeholder="Perfil de TikTok"
@@ -643,8 +666,8 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                     {isEditing ? (
                       <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5 focus-within:border-purple-500/50 transition-colors">
                         <Instagram className="w-5 h-5 text-purple-500 shrink-0" />
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           value={formData.socialLinks?.instagram || ''}
                           onChange={(e) => handleSocialChange('instagram', e.target.value)}
                           placeholder="Perfil de Instagram"
@@ -668,8 +691,8 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                     <>
                       <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5 focus-within:border-blue-500/50 transition-colors">
                         <Linkedin className="w-5 h-5 text-blue-500 shrink-0" />
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           value={formData.socialLinks?.linkedin || ''}
                           onChange={(e) => handleSocialChange('linkedin', e.target.value)}
                           placeholder="Perfil de LinkedIn"
@@ -678,8 +701,8 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                       </div>
                       <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5 focus-within:border-green-500/50 transition-colors">
                         <Globe className="w-5 h-5 text-green-500 shrink-0" />
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           value={formData.socialLinks?.website || ''}
                           onChange={(e) => handleSocialChange('website', e.target.value)}
                           placeholder="Sitio Web Personal"
@@ -689,7 +712,7 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                     </>
                   )}
                 </div>
-                
+
                 {!isEditing && !formData.socialLinks?.youtube && !formData.socialLinks?.tiktok && !formData.socialLinks?.instagram && (
                   <div className="text-center py-8 text-gray-500 text-sm">
                     No hay redes sociales vinculadas.
@@ -724,12 +747,12 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Comentario</label>
-                <textarea 
-                  required 
-                  rows={4} 
+                <textarea
+                  required
+                  rows={4}
                   value={newReview.comment}
                   onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
-                  className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition resize-none" 
+                  className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition resize-none"
                   placeholder="Describe tu experiencia trabajando con este usuario..."
                 ></textarea>
               </div>

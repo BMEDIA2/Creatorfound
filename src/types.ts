@@ -59,12 +59,16 @@ export interface Project {
   budget: string;
   description: string;
   skills: string;
-  duration: string;
+  duration: string; // Keep for legacy if needed, but we'll use projectDuration
   experience: string;
   creatorId: string;
   creatorName: string;
   createdAt: string;
   status: 'active' | 'in-progress' | 'completed' | 'closed';
+  image?: string;
+  exampleLinks?: string[];
+  experienceTime?: string;
+  projectDuration?: 'short' | 'medium' | 'long';
 }
 
 export interface Proposal {

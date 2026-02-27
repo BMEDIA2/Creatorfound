@@ -1,13 +1,15 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Filter, ArrowRight } from 'lucide-react';
+import { User } from '../types';
 
 interface TalentProps {
   setActiveModal: (modal: string | null) => void;
   startConversation: (userId: string, userName: string) => void;
+  onViewProfile: (user: User) => void;
 }
 
-export default function Talent({ setActiveModal, startConversation }: TalentProps) {
+export default function Talent({ setActiveModal, startConversation, onViewProfile }: TalentProps) {
   const talents = [
     { name: 'Sarah Jenkins', role: 'Creative Director', img: 'https://i.pravatar.cc/150?img=5', status: 'red' },
     { name: 'Kai Takagi', role: 'Channel Manager', img: 'https://i.pravatar.cc/150?img=11', status: 'purple' },
@@ -24,9 +26,9 @@ export default function Talent({ setActiveModal, startConversation }: TalentProp
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 mb-8">
         <h1 className="text-4xl font-bold text-white">Talent</h1>
-        
+
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <button 
+          <button
             onClick={() => setActiveModal('filter')}
             className="px-4 py-2.5 rounded-lg border border-white/10 bg-[#1a1a1a] hover:bg-[#252525] text-gray-300 hover:text-white transition flex items-center gap-2 text-sm font-medium"
           >
@@ -59,7 +61,7 @@ export default function Talent({ setActiveModal, startConversation }: TalentProp
               </div>
             </div>
             <div className="text-gray-600 group-hover:text-white transition-colors flex items-center gap-2">
-              <button 
+              <button
                 onClick={(e) => {
                   e.stopPropagation();
                   startConversation(`t${i}`, talent.name);
