@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Filter, Briefcase, MapPin, ArrowRight, DollarSign, Clock, CheckCircle, Mail, Twitter, Linkedin, Plus, Bookmark } from 'lucide-react';
 import { Project, User } from '../types';
 
+import { supabase } from '../lib/supabase';
+
 interface ExploreProps {
   currentUser: User | null;
   projects: Project[];
@@ -31,13 +33,49 @@ export default function Explore({
   const [experienceFilter, setExperienceFilter] = useState('all');
   const [minBudgetFilter, setMinBudgetFilter] = useState('');
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [savedProjects, setSavedProjects] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (currentUser) {
+      const fetchSaved = async () => {
+        const { data } = await supabase
+          .from('saved_projects')
+          .select('*')
+          .eq('user_id', currentUser.id);
+        if (data) setSavedProjects(data);
+      };
+      fetchSaved();
+    }
+  }, [currentUser]);
+
+  const toggleSaveProject = async (projectId: string) => {
+    if (!currentUser) return;
+
+    const isSaved = savedProjects.find(sp => sp.projectId === projectId || sp.project_id === projectId);
+
+    if (isSaved) {
+      await supabase.from('saved_projects').delete().eq('id', isSaved.id);
+      setSavedProjects(prev => prev.filter(sp => sp.id !== isSaved.id));
+      showToast('Proyecto eliminado de guardados', 'success');
+    } else {
+      const { data, error } = await supabase
+        .from('saved_projects')
+        .insert([{ user_id: currentUser.id, project_id: projectId }])
+        .select()
+        .single();
+
+      if (!error && data) {
+        setSavedProjects(prev => [...prev, data]);
+        showToast('Proyecto guardado correctamente', 'success');
+      }
+    }
+  };
 
   // External Jobs States
   const [externalLanguage, setExternalLanguage] = useState<'all' | 'es'>('all');
   const [isLoadingExternal, setIsLoadingExternal] = useState(false);
   const [externalError, setExternalError] = useState<string | null>(null);
-  const [redditAfterToken, setRedditAfterToken] = useState<string | null>(null);
-  const [subredditIndex, setSubredditIndex] = useState(0);
+  const [googleStartIndex, setGoogleStartIndex] = useState<number>(1);
   const [realJobs, setRealJobs] = useState<{
     id: string;
     platform: string;
@@ -50,76 +88,154 @@ export default function Explore({
     lang: string;
   }[]>([]);
 
-  const SUBREDDITS = [
-    { name: 'FindVideoEditors', lang: 'en' },
-    { name: 'forhire', lang: 'en' },
-    { name: 'socialmediajobs', lang: 'en' },
-    { name: 'VFX', lang: 'en' },
-    { name: 'trabajo_independiente', lang: 'es' },
-    { name: 'freelance', lang: 'en' },
-  ];
-
-  const JOB_KEYWORDS = ['hiring', 'editor', 'busco', 'looking for', 'freelance', 'video editor', 'thumbnail', 'se busca', 'editing', 'contrato', 'remote'];
-
-  const fetchRealJobs = useCallback(async (after?: string | null, subIndex?: number) => {
+  const fetchRealJobs = useCallback(async (startIndex = 1) => {
     setIsLoadingExternal(true);
     setExternalError(null);
 
-    const currentSubIndex = subIndex !== undefined ? subIndex : subredditIndex;
-    const sub = SUBREDDITS[currentSubIndex % SUBREDDITS.length];
-    const afterParam = after ? `&after=${after}` : '';
-    const redditUrl = `https://www.reddit.com/r/${sub.name}/new.json?limit=25${afterParam}`;
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(redditUrl)}`;
+    const baseQuery = externalLanguage === 'es'
+      ? 'busco editor de video freelance OR diseñador de miniaturas'
+      : 'hiring freelance video editor OR thumbnail designer';
 
-    try {
-      const res = await fetch(proxyUrl);
-      if (!res.ok) throw new Error('Error de red');
-      const data = await res.json();
-      const parsed = JSON.parse(data.contents);
-      const posts = parsed?.data?.children ?? [];
+    const env = (import.meta as any).env || {};
 
-      const filtered = posts
-        .filter((p: any) => {
-          const title = (p.data.title || '').toLowerCase();
-          const selftext = (p.data.selftext || '').toLowerCase();
-          const combined = `${title} ${selftext}`;
-          return JOB_KEYWORDS.some(kw => combined.includes(kw));
-        })
-        .map((p: any) => ({
-          id: p.data.id,
-          platform: `Reddit (r/${sub.name})`,
-          author: p.data.author,
-          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(p.data.author)}&background=random&color=fff&size=40`,
-          text: p.data.title,
-          date: new Date(p.data.created_utc * 1000).toISOString(),
-          type: sub.name === 'trabajo_independiente' ? 'Trabajo Remoto' : sub.name === 'VFX' ? 'VFX / Motion' : 'Video Editor',
-          url: `https://www.reddit.com${p.data.permalink}`,
-          lang: sub.lang,
-        }));
+    // Lista de API Keys para alternar cuando una se agote (429 Too Many Requests)
+    const apiKeys = [
+      env.VITE_GOOGLE_SEARCH_API_KEY || 'AIzaSyAnq04JD8eLVjQb7hmyo_HL1WqjFjYNlMA',
+      env.VITE_GOOGLE_SEARCH_API_KEY_2 || '', // Agrega tu segunda API Key aquí o en variables de entorno
+      env.VITE_GOOGLE_SEARCH_API_KEY_3 || ''  // Agrega tu tercera API Key aquí o en variables de entorno
+    ].filter(key => key && key.trim() !== '');
 
-      const newAfter = parsed?.data?.after ?? null;
-      setRedditAfterToken(newAfter);
-      setSubredditIndex(prev => (newAfter ? prev : (prev + 1) % SUBREDDITS.length));
-      setRealJobs(prev => {
-        const existingIds = new Set(prev.map(j => j.id));
-        return [...prev, ...filtered.filter((f: any) => !existingIds.has(f.id))];
-      });
-    } catch (err) {
-      console.error('Error fetching Reddit jobs:', err);
-      setExternalError('No se pudo conectar con las redes sociales. Intenta de nuevo.');
-    } finally {
-      setIsLoadingExternal(false);
+    const CX = env.VITE_GOOGLE_SEARCH_CX || '32f79b078dd764b90';
+
+    let success = false;
+    let fallbackError: any = null;
+
+    for (let i = 0; i < apiKeys.length; i++) {
+      const API_KEY = apiKeys[i];
+      const url = `https://customsearch.googleapis.com/customsearch/v1?key=${API_KEY}&cx=${CX}&q=${encodeURIComponent(baseQuery)}&start=${startIndex}`;
+
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          if (res.status === 403) throw new Error('API Key sin permisos de Custom Search API (403 Forbidden).');
+          if (res.status === 400) throw new Error('Petición inválida (400 Bad Request). Revisa la query.');
+          if (res.status === 429) throw new Error('Límite de peticiones superado (429 Too Many Requests).');
+          throw new Error(`Error de red HTTP: ${res.status}`);
+        }
+
+        const data = await res.json();
+        const items = data.items || [];
+
+        const newJobs = items.map((item: any) => {
+          let hostname = 'Google Search';
+          try { hostname = new URL(item.link).hostname.replace('www.', ''); } catch (e) { }
+
+          return {
+            id: item.cacheId || item.link || Math.random().toString(),
+            platform: hostname,
+            author: item.displayLink || hostname,
+            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(hostname)}&background=random&color=fff&size=40`,
+            text: `${item.title} - ${item.snippet}`,
+            date: new Date().toISOString(),
+            type: 'Oportunidad Externa',
+            url: item.link,
+            lang: externalLanguage,
+          };
+        });
+
+        setGoogleStartIndex(startIndex + 10);
+        setRealJobs(prev => {
+          const existingUrls = new Set(prev.map(j => j.url));
+          return [...prev, ...newJobs.filter((f: any) => !existingUrls.has(f.url))];
+        });
+
+        success = true;
+        break; // Éxito con esta API Key, salir del ciclo
+
+      } catch (err: any) {
+        console.warn(`Error con la API KEY ${i + 1}:`, err.message);
+        fallbackError = err;
+        // Continuará con la siguiente API Key del ciclo `for`
+      }
     }
-  }, [subredditIndex, externalLanguage]);
+
+    // Fallback: Si todas las API Keys fallan, intentamos usar DuckDuckGo HTML scraper vía allorigins
+    if (!success) {
+      console.warn('Usando scraper de DuckDuckGo como alternativa (todas las API Keys de Google fallaron).');
+      try {
+        const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(baseQuery + " site:linkedin.com/jobs OR site:upwork.com OR site:freelancer.com")}`;
+        // allorigins is sometimes flaky, we'll try it but fail silently if it breaks
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(ddgUrl)}`;
+
+        const ddgRes = await fetch(proxyUrl);
+        if (!ddgRes.ok) throw new Error('No se pudo usar DuckDuckGo Proxy');
+
+        const ddgData = await ddgRes.json();
+
+        // Prevent crashing if contents are null
+        if (!ddgData || !ddgData.contents) {
+          throw new Error('Proxy returned empty contents');
+        }
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(ddgData.contents, 'text/html');
+
+        const results = Array.from(doc.querySelectorAll('.result'));
+        const newJobs = results.map((result: any) => {
+          const titleEl = result.querySelector('.result__title .result__a');
+          const snippetEl = result.querySelector('.result__snippet');
+          const linkEl = result.querySelector('.result__url');
+
+          const title = titleEl ? titleEl.textContent?.trim() : 'Oportunidad sin título';
+          const href = titleEl ? titleEl.getAttribute('href') : '';
+          let actualLink = href;
+          // Decode duckduckgo redirect if present
+          if (href?.includes('uddg=')) {
+            actualLink = decodeURIComponent(href.split('uddg=')[1].split('&')[0]);
+          }
+
+          const snippet = snippetEl ? snippetEl.textContent?.trim() : 'Sin descripción';
+          let hostname = 'DuckDuckGo';
+          try { hostname = new URL(actualLink).hostname.replace('www.', ''); } catch (e) { }
+
+          return {
+            id: actualLink || Math.random().toString(),
+            platform: hostname,
+            author: hostname,
+            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(hostname)}&background=random&color=fff&size=40`,
+            text: `${title} - ${snippet}`,
+            date: new Date().toISOString(),
+            type: 'Oportunidad Externa',
+            url: actualLink,
+            lang: externalLanguage,
+          };
+        }).filter((job: any) => job.url && !job.url.includes('duckduckgo.com'));
+
+        setGoogleStartIndex(startIndex + 10);
+        setRealJobs(prev => {
+          const existingUrls = new Set(prev.map(j => j.url));
+          return [...prev, ...newJobs.filter((f: any) => !existingUrls.has(f.url))];
+        });
+
+        success = true;
+      } catch (ddgErr: any) {
+        console.error('El scraper alternativa de DuckDuckGo falló también:', ddgErr);
+        // Fallar silenciosamente en la UI para no arruinar la experiencia, solo mostrar vacío
+        setExternalError('No pudimos cargar vacantes en este momento por límites de búsqueda. Intenta de nuevo más tarde.');
+      }
+    }
+
+    setIsLoadingExternal(false);
+  }, [externalLanguage]);
 
   useEffect(() => {
-    if (activeTab === 'social' && realJobs.length === 0 && !isLoadingExternal) {
-      fetchRealJobs(null, 0);
+    if (activeTab === 'social' && realJobs.length === 0 && !isLoadingExternal && !externalError) {
+      fetchRealJobs(1);
     }
-  }, [activeTab]);
+  }, [activeTab, fetchRealJobs, realJobs.length, isLoadingExternal, externalError]);
 
   const handleLoadMoreExternal = () => {
-    fetchRealJobs(redditAfterToken);
+    fetchRealJobs(googleStartIndex);
   };
 
   const displayedSocialPosts = realJobs.filter(post => {
@@ -144,6 +260,23 @@ export default function Explore({
     const matchesExp = experienceFilter === 'all' || p.experience === experienceFilter;
     return matchesCat && matchesSearch && matchesBudget && matchesExp;
   });
+
+  // Derived arrays based on auth and tab
+  let displayInternalProjects = activeTab === 'all' ? filteredProjects : projects;
+  if (activeTab === 'saved') {
+    displayInternalProjects = displayInternalProjects.filter(p => savedProjects.some(sp => sp.projectId === p.id || sp.project_id === p.id));
+  }
+  if (!currentUser) {
+    displayInternalProjects = displayInternalProjects.slice(0, 3);
+  }
+
+  let finalExternalPosts = activeTab === 'social' ? displayedSocialPosts : realJobs;
+  if (activeTab === 'saved') {
+    finalExternalPosts = finalExternalPosts.filter(p => savedProjects.some(sp => sp.projectId === p.id || sp.project_id === p.id));
+  }
+  if (!currentUser && finalExternalPosts.length > 0) {
+    finalExternalPosts = finalExternalPosts.slice(0, 3);
+  }
 
   if (viewingProject) {
     return (
@@ -442,7 +575,7 @@ export default function Explore({
                 <div className="flex items-center gap-2">
                   <span className="flex items-center gap-1.5 text-xs text-green-400 font-bold uppercase tracking-wider">
                     <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block"></span>
-                    Datos en tiempo real · Reddit
+                    Datos en tiempo real
                   </span>
                 </div>
 
@@ -473,55 +606,70 @@ export default function Explore({
           {/* Job List */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {activeTab === 'all' ? (
-              filteredProjects.length > 0 ? filteredProjects.map(p => (
-                <div
-                  key={p.id}
-                  onClick={() => setViewingProject(p)}
-                  className="bg-[#111111] rounded-2xl p-6 border border-white/5 hover:border-indigo-500/30 transition-all group cursor-pointer flex flex-col h-full"
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-600/20 border border-white/10 flex items-center justify-center text-lg font-bold text-white shrink-0 group-hover:scale-105 transition-transform">
-                      {p.creatorName.substring(0, 2).toUpperCase()}
-                    </div>
-                    {p.status === 'active' && <span className="px-2 py-1 rounded text-[10px] font-bold bg-green-500/20 text-green-400 uppercase tracking-wider">Nuevo</span>}
-                  </div>
+              displayInternalProjects.length > 0 ? (
+                <>
+                  {displayInternalProjects.map(p => (
+                    <div
+                      key={p.id}
+                      onClick={() => setViewingProject(p)}
+                      className="bg-[#111111] rounded-2xl p-6 border border-white/5 hover:border-indigo-500/30 transition-all group cursor-pointer flex flex-col h-full"
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-600/20 border border-white/10 flex items-center justify-center text-lg font-bold text-white shrink-0 group-hover:scale-105 transition-transform">
+                          {p.creatorName.substring(0, 2).toUpperCase()}
+                        </div>
+                        {p.status === 'active' && <span className="px-2 py-1 rounded text-[10px] font-bold bg-green-500/20 text-green-400 uppercase tracking-wider">Nuevo</span>}
+                      </div>
 
-                  <div className="mb-4 flex-1">
-                    <h3 className="font-bold text-white text-lg mb-2 line-clamp-2 group-hover:text-indigo-400 transition-colors">
-                      {p.title}
-                    </h3>
+                      <div className="mb-4 flex-1">
+                        <h3 className="font-bold text-white text-lg mb-2 line-clamp-2 group-hover:text-indigo-400 transition-colors">
+                          {p.title}
+                        </h3>
 
-                    <div className="flex items-center gap-4 text-sm text-gray-400 mb-4">
-                      <span className="font-medium text-gray-300 truncate max-w-[100px]">{p.creatorName}</span>
-                      <div className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Remoto</div>
-                      <div className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> 2h</div>
-                    </div>
+                        <div className="flex items-center gap-4 text-sm text-gray-400 mb-4">
+                          <span className="font-medium text-gray-300 truncate max-w-[100px]">{p.creatorName}</span>
+                          <div className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Remoto</div>
+                          <div className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> 2h</div>
+                        </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      {p.skills.split(',').slice(0, 3).map((s, i) => (
-                        <span key={i} className="text-xs bg-white/5 px-2.5 py-1 rounded-md text-gray-300 border border-white/5">
-                          {s.trim()}
-                        </span>
-                      ))}
-                      {p.skills.split(',').length > 3 && (
-                        <span className="text-xs bg-white/5 px-2.5 py-1 rounded-md text-gray-500 border border-white/5">
-                          +{p.skills.split(',').length - 3}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                        <div className="flex flex-wrap gap-2">
+                          {p.skills.split(',').slice(0, 3).map((s, i) => (
+                            <span key={i} className="text-xs bg-white/5 px-2.5 py-1 rounded-md text-gray-300 border border-white/5">
+                              {s.trim()}
+                            </span>
+                          ))}
+                          {p.skills.split(',').length > 3 && (
+                            <span className="text-xs bg-white/5 px-2.5 py-1 rounded-md text-gray-500 border border-white/5">
+                              +{p.skills.split(',').length - 3}
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-                  <div className="pt-4 border-t border-white/5 flex items-center justify-between mt-auto">
-                    <div>
-                      <div className="font-bold text-white">{p.budget}</div>
-                      <div className="text-xs text-gray-500 capitalize">{p.duration}</div>
+                      <div className="pt-4 border-t border-white/5 flex items-center justify-between mt-auto">
+                        <div>
+                          <div className="font-bold text-white">{p.budget}</div>
+                          <div className="text-xs text-gray-500 capitalize">{p.duration}</div>
+                        </div>
+                        <button className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/10 group-hover:border-indigo-500/50 group-hover:bg-indigo-500/10 group-hover:text-indigo-400">
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                    <button className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/10 group-hover:border-indigo-500/50 group-hover:bg-indigo-500/10 group-hover:text-indigo-400">
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              )) : (
+                  ))}
+
+                  {!currentUser && filteredProjects.length > 3 && (
+                    <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 rounded-2xl p-6 border border-indigo-500/20 flex flex-col items-center justify-center text-center h-full min-h-[250px] relative overflow-hidden group">
+                      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+                      <h3 className="text-xl font-bold text-white mb-2 relative z-10">¿Quieres ver más?</h3>
+                      <p className="text-indigo-300 text-sm mb-6 relative z-10">Únete para desbloquear {filteredProjects.length - 3} proyectos adicionales listos para tu propuesta.</p>
+                      <button onClick={() => setActiveModal('register')} className="btn-primary py-3 px-6 rounded-xl font-bold text-white relative z-10 group-hover:scale-105 transition-transform">
+                        Crear Cuenta Gratis
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
                 <div className="col-span-full text-center py-20 bg-[#111111] rounded-2xl border border-white/5">
                   <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
                     <Search className="w-8 h-8 text-gray-500" />
@@ -543,50 +691,89 @@ export default function Explore({
               )
             ) : activeTab === 'social' ? (
               <>
-                {displayedSocialPosts.length > 0 ? displayedSocialPosts.map(post => (
-                  <div
-                    key={post.id}
-                    className="bg-[#111111] rounded-2xl p-6 border border-white/5 hover:border-blue-500/30 transition-all group flex flex-col h-full"
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex items-center gap-3">
-                        <img src={post.avatar} alt={post.author} className="w-10 h-10 rounded-full border border-white/10" />
-                        <div>
-                          <h4 className="font-bold text-white text-sm">{post.author}</h4>
-                          <p className="text-[10px] text-blue-400 font-bold uppercase">{post.platform}</p>
+                {finalExternalPosts.length > 0 ? (
+                  <>
+                    {finalExternalPosts.map(post => {
+                      const isSaved = savedProjects.some(sp => sp.projectId === post.id);
+                      return (
+                        <div
+                          key={post.id}
+                          className="bg-[#111111] rounded-2xl p-6 border border-white/5 hover:border-blue-500/30 transition-all group flex flex-col h-full relative"
+                        >
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (currentUser) {
+                                toggleSaveProject(post.id);
+                              } else {
+                                // En la vida real, se usa un context de toast
+                                alert('Inicia sesión para guardar');
+                              }
+                            }}
+                            className="absolute top-4 right-4 p-2 rounded-full bg-black/40 hover:bg-white/10 text-white transition-colors z-10"
+                          >
+                            <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-indigo-500 text-indigo-500' : ''}`} />
+                          </button>
+                          <div className="flex justify-between items-start mb-4 pr-10">
+                            <div className="flex items-center gap-3">
+                              <img src={post.avatar} alt={post.author} className="w-10 h-10 rounded-full border border-white/10" />
+                              <div>
+                                <h4 className="font-bold text-white text-sm truncate max-w-[120px]">{post.author}</h4>
+                                <p className="text-[10px] text-blue-400 font-bold uppercase">{post.platform}</p>
+                              </div>
+                            </div>
+                            <span className="px-2 py-1 rounded text-[9px] font-bold bg-blue-500/20 text-blue-400 uppercase tracking-wider shrink-0">Reciente</span>
+                          </div>
+
+                          <p className="text-sm text-gray-300 mb-4 flex-1 line-clamp-4 italic">
+                            "{post.text}"
+                          </p>
+
+                          <div className="pt-4 border-t border-white/5 flex items-center justify-between mt-auto">
+                            <div>
+                              <div className="font-bold text-white text-xs">{post.type}</div>
+                              <div className="text-[10px] text-gray-500">{new Date(post.date).toLocaleDateString()}</div>
+                            </div>
+                            <a
+                              href={post.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-bold transition"
+                            >
+                              Ver Post
+                            </a>
+                          </div>
                         </div>
-                      </div>
-                      <span className="px-2 py-1 rounded text-[9px] font-bold bg-blue-500/20 text-blue-400 uppercase tracking-wider">Reciente</span>
-                    </div>
+                      );
+                    })}
 
-                    <p className="text-sm text-gray-300 mb-4 flex-1 line-clamp-4 italic">
-                      "{post.text}"
-                    </p>
-
-                    <div className="pt-4 border-t border-white/5 flex items-center justify-between mt-auto">
-                      <div>
-                        <div className="font-bold text-white text-xs">{post.type}</div>
-                        <div className="text-[10px] text-gray-500">{new Date(post.date).toLocaleDateString()}</div>
+                    {!currentUser && displayedSocialPosts.length > 3 && (
+                      <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 rounded-2xl p-6 border border-blue-500/20 flex flex-col items-center justify-center text-center h-full min-h-[250px] relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+                        <h3 className="text-xl font-bold text-white mb-2 relative z-10">¿Buscas más oportunidades externas?</h3>
+                        <p className="text-blue-300 text-sm mb-6 relative z-10">Inicia sesión y empieza a guardar tus favoritas y mantente actualizado en tiempo real.</p>
+                        <button onClick={() => setActiveModal('login')} className="bg-blue-600 hover:bg-blue-500 py-3 px-6 rounded-xl font-bold text-white relative z-10 group-hover:scale-105 transition-transform">
+                          Inicia Sesión Ahora
+                        </button>
                       </div>
-                      <a
-                        href={post.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-bold transition"
-                      >
-                        Ver Post
-                      </a>
-                    </div>
-                  </div>
-                )) : (
+                    )}
+                  </>
+                ) : (
                   <div className="col-span-full text-center py-20 bg-[#111111] rounded-2xl border border-white/5">
-                    <h3 className="text-xl font-bold text-white mb-2">No hay publicaciones recientes</h3>
+                    {externalError ? (
+                      <>
+                        <h3 className="text-xl font-bold text-red-500 mb-2">Ops, hubo un problema</h3>
+                        <p className="text-gray-400 max-w-md mx-auto">{externalError}</p>
+                      </>
+                    ) : (
+                      <h3 className="text-xl font-bold text-white mb-2">No hay publicaciones recientes</h3>
+                    )}
                   </div>
                 )}
 
                 <div className="col-span-full flex flex-col items-center justify-center mt-12 py-8 border-t border-white/5">
                   <div className="text-gray-500 text-sm mb-4 font-medium italic">
-                    {isLoadingExternal ? 'Escaneando redes sociales en busca de nuevas vacantes...' : '¿Buscas algo más específico?'}
+                    {isLoadingExternal ? 'Escaneando la web en busca de nuevas vacantes...' : '¿Buscas algo más específico?'}
                   </div>
                   <button
                     onClick={handleLoadMoreExternal}
@@ -610,14 +797,117 @@ export default function Explore({
                   </p>
                 </div>
               </>
+            ) : activeTab === 'saved' ? (
+              !currentUser ? (
+                <div className="col-span-full text-center py-20 bg-[#111111] rounded-2xl border border-white/5 flex flex-col items-center justify-center">
+                  <Bookmark className="w-16 h-16 text-indigo-500 mb-4" />
+                  <h3 className="text-2xl font-bold text-white mb-2">Protege tus Oportunidades</h3>
+                  <p className="text-gray-400 mb-6 max-w-md mx-auto">Inicia sesión para guardar proyectos y vacantes externas, y accede a ellos en cualquier momento desde esta pestaña rápida.</p>
+                  <button onClick={() => setActiveModal('login')} className="btn-primary py-3 px-8 rounded-xl font-bold text-white shadow-lg shadow-indigo-500/20">
+                    Iniciar Sesión
+                  </button>
+                </div>
+              ) : (
+                displayInternalProjects.length === 0 && finalExternalPosts.length === 0 ? (
+                  <div className="col-span-full text-center py-20 bg-[#111111] rounded-2xl border border-white/5">
+                    <Bookmark className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-400 text-lg">Aún no tienes ningún proyecto o vacante guardada.</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Render Internal Saved */}
+                    {displayInternalProjects.map(p => (
+                      <div
+                        key={p.id}
+                        onClick={() => setViewingProject(p)}
+                        className="bg-[#111111] rounded-2xl p-6 border border-indigo-500/50 hover:border-indigo-400 transition-all group flex flex-col h-full cursor-pointer relative"
+                      >
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSaveProject(p.id);
+                          }}
+                          className="absolute top-4 right-4 p-2 rounded-full bg-black/40 hover:bg-white/10 text-white transition-colors z-10"
+                        >
+                          <Bookmark className="w-4 h-4 fill-indigo-500 text-indigo-500" />
+                        </button>
+
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-600/20 border border-white/10 flex items-center justify-center font-bold text-white shrink-0">
+                            {p.creatorName.substring(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-white text-md line-clamp-1">{p.title}</h3>
+                            <p className="text-[10px] text-gray-500 font-bold uppercase">Interno</p>
+                          </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-white/5 flex items-center justify-between mt-auto">
+                          <div>
+                            <div className="font-bold text-indigo-400">{p.budget}</div>
+                          </div>
+                          <span className="text-xs bg-indigo-600/20 text-indigo-300 font-bold px-3 py-1 rounded-full group-hover:bg-indigo-600 transition">Ver Proyecto</span>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Render External Saved */}
+                    {finalExternalPosts.map(post => {
+                      return (
+                        <div
+                          key={post.id}
+                          className="bg-[#111111] rounded-2xl p-6 border border-blue-500/50 hover:border-blue-400 transition-all group flex flex-col h-full relative"
+                        >
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSaveProject(post.id);
+                            }}
+                            className="absolute top-4 right-4 p-2 rounded-full bg-black/40 hover:bg-white/10 text-white transition-colors z-10"
+                          >
+                            <Bookmark className="w-4 h-4 fill-blue-500 text-blue-500" />
+                          </button>
+                          <div className="flex justify-between items-start mb-4 pr-10">
+                            <div className="flex items-center gap-3">
+                              <img src={post.avatar} alt={post.author} className="w-10 h-10 rounded-full border border-white/10" />
+                              <div>
+                                <h4 className="font-bold text-white text-sm truncate max-w-[120px]">{post.author}</h4>
+                                <p className="text-[10px] text-blue-400 font-bold uppercase">{post.platform} • Externa</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <p className="text-sm text-gray-300 mb-4 flex-1 line-clamp-4 italic">
+                            "{post.text}"
+                          </p>
+
+                          <div className="pt-4 border-t border-white/5 flex items-center justify-between mt-auto">
+                            <div>
+                              <div className="text-[10px] text-gray-500">{new Date(post.date).toLocaleDateString()}</div>
+                            </div>
+                            <a
+                              href={post.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs bg-blue-600/20 text-blue-300 group-hover:bg-blue-600 group-hover:text-white px-3 py-1.5 rounded-lg font-bold transition"
+                            >
+                              Ver Post Enlace
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                )
+              )
             ) : (
               <div className="col-span-full text-center py-20 bg-[#111111] rounded-2xl border border-white/5">
-                <p className="text-gray-400">Esta sección estará disponible pronto.</p>
+                <p className="text-gray-400">No se encontraron resultados disponibles.</p>
               </div>
             )}
           </div>
         </div>
       </div>
-    </motion.div >
+    </motion.div>
   );
 }

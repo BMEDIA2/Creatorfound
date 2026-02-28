@@ -51,10 +51,10 @@ export default function DashboardAdmin({
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-7xl mx-auto">
       <AnimatePresence>
         {isEditingBlog && (
-          <BlogEditor 
-            post={currentPost} 
-            onSave={handleSavePost} 
-            onCancel={() => setIsEditingBlog(false)} 
+          <BlogEditor
+            post={currentPost}
+            onSave={handleSavePost}
+            onCancel={() => setIsEditingBlog(false)}
             currentUser={currentUser}
           />
         )}
@@ -76,7 +76,7 @@ export default function DashboardAdmin({
           </button>
         </div>
       </div>
-      
+
       <div className="grid lg:grid-cols-4 gap-6 mb-8">
         <div className="glass-card rounded-2xl p-6 border border-white/5">
           <div className="flex items-center gap-4 mb-2">
@@ -122,15 +122,17 @@ export default function DashboardAdmin({
                   </div>
                   <div className="text-sm text-gray-400">{u.email}</div>
                 </div>
-                <button 
-                  onClick={() => handleToggleUserStatus(u.id)}
-                  className={`px-3 py-1.5 rounded text-xs font-bold transition ${
-                    u.status === 'blocked' ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                  }`}
-                  disabled={u.id === currentUser.id}
-                >
-                  {u.status === 'blocked' ? 'Desbloquear' : 'Bloquear'}
-                </button>
+                {u.id !== currentUser.id ? (
+                  <button
+                    onClick={() => handleToggleUserStatus(u.id)}
+                    className={`px-3 py-1.5 rounded text-xs font-bold transition ${u.status === 'blocked' ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                      }`}
+                  >
+                    {u.status === 'blocked' ? 'Desbloquear' : 'Bloquear'}
+                  </button>
+                ) : (
+                  <span className="text-xs text-gray-500 bg-white/5 px-3 py-1.5 rounded">Tú</span>
+                )}
               </div>
             ))}
           </div>
@@ -146,7 +148,7 @@ export default function DashboardAdmin({
                   <div className="font-bold text-white line-clamp-1">{p.title}</div>
                   <div className="text-sm text-gray-400">Por: {p.creatorName} • {p.status}</div>
                 </div>
-                <button 
+                <button
                   onClick={() => handleDeleteProject(p.id)}
                   className="p-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg transition"
                   title="Borrar Proyecto"
@@ -159,7 +161,7 @@ export default function DashboardAdmin({
           </div>
         </div>
       </div>
-      
+
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Blog Management */}
         <div className="glass-card rounded-2xl p-6 border border-white/5">
@@ -172,14 +174,14 @@ export default function DashboardAdmin({
                   <div className="text-sm text-gray-400">{post.date} • {post.category}</div>
                 </div>
                 <div className="flex gap-2">
-                  <button 
+                  <button
                     onClick={() => handleEditPost(post)}
                     className="p-2 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 rounded-lg transition"
                     title="Editar"
                   >
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => onDeleteBlogPost(post.id)}
                     className="p-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg transition"
                     title="Borrar"
@@ -207,11 +209,10 @@ export default function DashboardAdmin({
                   <div className="text-sm text-gray-300 mt-1">{a.content}</div>
                   <div className="text-xs text-gray-500 mt-2">{new Date(a.createdAt).toLocaleString()}</div>
                 </div>
-                <button 
+                <button
                   onClick={() => handleToggleAnnouncement(a.id)}
-                  className={`px-3 py-1.5 rounded text-xs font-bold transition ${
-                    !a.active ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30'
-                  }`}
+                  className={`px-3 py-1.5 rounded text-xs font-bold transition ${!a.active ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30'
+                    }`}
                 >
                   {a.active ? 'Desactivar' : 'Activar'}
                 </button>

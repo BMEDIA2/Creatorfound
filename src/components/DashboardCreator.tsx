@@ -12,6 +12,7 @@ interface DashboardCreatorProps {
   markProjectCompleted: (projectId: string) => void;
   updateProposalStatus: (propId: string, status: 'accepted' | 'rejected') => void;
   startConversation: (userId: string, userName: string) => void;
+  onNewProject: () => void;
 }
 
 export default function DashboardCreator({
@@ -22,7 +23,8 @@ export default function DashboardCreator({
   closeProject,
   markProjectCompleted,
   updateProposalStatus,
-  startConversation
+  startConversation,
+  onNewProject
 }: DashboardCreatorProps) {
   const myProjects = projects.filter(p => p.creatorId === currentUser.id);
   const activeProjects = myProjects.filter(p => p.status === 'active');
@@ -53,7 +55,7 @@ export default function DashboardCreator({
           <p className="text-gray-400 text-lg">Gestiona tus proyectos y encuentra el talento perfecto.</p>
         </div>
         <button
-          onClick={() => setActiveModal('createProject')}
+          onClick={onNewProject}
           className="group px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2"
         >
           <div className="p-1 bg-white/20 rounded-lg group-hover:rotate-90 transition-transform duration-300">
@@ -206,7 +208,7 @@ export default function DashboardCreator({
                 </div>
                 <h3 className="text-xl font-bold text-white mb-2">No tienes proyectos activos</h3>
                 <p className="text-gray-400 mb-8 max-w-md mx-auto">Publica tu primer proyecto para empezar a recibir propuestas de los mejores talentos.</p>
-                <button onClick={() => setActiveModal('createProject')} className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors shadow-lg shadow-indigo-500/20">
+                <button onClick={onNewProject} className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors shadow-lg shadow-indigo-500/20">
                   Crear Proyecto Ahora
                 </button>
               </div>

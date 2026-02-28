@@ -39,7 +39,7 @@ export default function BlogEditor({ post, onSave, onCancel, currentUser }: Blog
   const moveBlock = (index: number, direction: 'up' | 'down') => {
     if (direction === 'up' && index === 0) return;
     if (direction === 'down' && index === blocks.length - 1) return;
-    
+
     const newBlocks = [...blocks];
     const temp = newBlocks[index];
     newBlocks[index] = newBlocks[index + (direction === 'up' ? -1 : 1)];
@@ -65,13 +65,21 @@ export default function BlogEditor({ post, onSave, onCancel, currentUser }: Blog
   };
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }} 
-      animate={{ opacity: 1, y: 0 }} 
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
       className="fixed inset-0 z-[200] bg-[#0a0a0a] overflow-y-auto"
     >
-      <div className="max-w-4xl mx-auto p-6 pb-20">
+      <button
+        onClick={onCancel}
+        className="fixed top-6 right-6 z-[210] bg-black/50 text-gray-400 hover:text-white hover:bg-black p-3 rounded-full backdrop-blur-md transition border border-white/10 shadow-xl"
+        title="Cerrar editor"
+      >
+        <X className="w-6 h-6" />
+      </button>
+
+      <div className="max-w-4xl mx-auto p-6 pb-32">
         {/* Header */}
         <div className="flex justify-between items-center mb-8 sticky top-0 bg-[#0a0a0a]/90 backdrop-blur-md py-4 z-10 border-b border-white/10">
           <h2 className="text-2xl font-bold">Editor de Artículos</h2>
@@ -91,21 +99,21 @@ export default function BlogEditor({ post, onSave, onCancel, currentUser }: Blog
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">Título</label>
-              <input 
-                value={title} 
-                onChange={e => setTitle(e.target.value)} 
-                className="input-field w-full px-4 py-3 rounded-xl text-white text-xl font-bold placeholder-gray-600" 
-                placeholder="Título del Artículo" 
+              <input
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                className="input-field w-full px-4 py-3 rounded-xl text-white text-xl font-bold placeholder-gray-600"
+                placeholder="Título del Artículo"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">Extracto</label>
-              <textarea 
-                value={excerpt} 
-                onChange={e => setExcerpt(e.target.value)} 
+              <textarea
+                value={excerpt}
+                onChange={e => setExcerpt(e.target.value)}
                 rows={3}
-                className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-600 resize-none" 
-                placeholder="Breve descripción para la tarjeta..." 
+                className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-600 resize-none"
+                placeholder="Breve descripción para la tarjeta..."
               />
             </div>
           </div>
@@ -113,11 +121,11 @@ export default function BlogEditor({ post, onSave, onCancel, currentUser }: Blog
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">Imagen de Portada (URL)</label>
               <div className="flex gap-2">
-                <input 
-                  value={coverImage} 
-                  onChange={e => setCoverImage(e.target.value)} 
-                  className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-600" 
-                  placeholder="https://..." 
+                <input
+                  value={coverImage}
+                  onChange={e => setCoverImage(e.target.value)}
+                  className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-600"
+                  placeholder="https://..."
                 />
               </div>
               {coverImage && (
@@ -129,20 +137,20 @@ export default function BlogEditor({ post, onSave, onCancel, currentUser }: Blog
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-1">Categoría</label>
-                <input 
-                  value={category} 
-                  onChange={e => setCategory(e.target.value)} 
-                  className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-600" 
-                  placeholder="Ej. Tecnología" 
+                <input
+                  value={category}
+                  onChange={e => setCategory(e.target.value)}
+                  className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-600"
+                  placeholder="Ej. Tecnología"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-1">Tiempo de Lectura</label>
-                <input 
-                  value={readTime} 
-                  onChange={e => setReadTime(e.target.value)} 
-                  className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-600" 
-                  placeholder="Ej. 5 min" 
+                <input
+                  value={readTime}
+                  onChange={e => setReadTime(e.target.value)}
+                  className="input-field w-full px-4 py-3 rounded-xl text-white placeholder-gray-600"
+                  placeholder="Ej. 5 min"
                 />
               </div>
             </div>
@@ -165,71 +173,71 @@ export default function BlogEditor({ post, onSave, onCancel, currentUser }: Blog
               {/* Block Content */}
               <div className="w-full">
                 {block.type === 'paragraph' && (
-                  <textarea 
-                    value={block.content} 
-                    onChange={e => updateBlock(block.id, e.target.value)} 
-                    className="w-full bg-transparent text-gray-300 text-lg leading-relaxed focus:outline-none resize-none" 
-                    placeholder="Escribe un párrafo..." 
+                  <textarea
+                    value={block.content}
+                    onChange={e => updateBlock(block.id, e.target.value)}
+                    className="w-full bg-transparent text-gray-300 text-lg leading-relaxed focus:outline-none resize-none"
+                    placeholder="Escribe un párrafo..."
                     rows={Math.max(2, block.content.split('\n').length)}
                   />
                 )}
                 {block.type === 'h1' && (
-                  <input 
-                    value={block.content} 
-                    onChange={e => updateBlock(block.id, e.target.value)} 
-                    className="w-full bg-transparent text-white text-4xl font-bold focus:outline-none" 
-                    placeholder="Encabezado Grande" 
+                  <input
+                    value={block.content}
+                    onChange={e => updateBlock(block.id, e.target.value)}
+                    className="w-full bg-transparent text-white text-4xl font-bold focus:outline-none"
+                    placeholder="Encabezado Grande"
                   />
                 )}
                 {block.type === 'h2' && (
-                  <input 
-                    value={block.content} 
-                    onChange={e => updateBlock(block.id, e.target.value)} 
-                    className="w-full bg-transparent text-white text-2xl font-bold focus:outline-none" 
-                    placeholder="Subtítulo" 
+                  <input
+                    value={block.content}
+                    onChange={e => updateBlock(block.id, e.target.value)}
+                    className="w-full bg-transparent text-white text-2xl font-bold focus:outline-none"
+                    placeholder="Subtítulo"
                   />
                 )}
                 {block.type === 'quote' && (
                   <div className="flex gap-4">
                     <div className="w-1 bg-indigo-500 rounded-full"></div>
-                    <textarea 
-                      value={block.content} 
-                      onChange={e => updateBlock(block.id, e.target.value)} 
-                      className="w-full bg-transparent text-xl italic text-gray-300 focus:outline-none resize-none" 
-                      placeholder="Cita destacada..." 
+                    <textarea
+                      value={block.content}
+                      onChange={e => updateBlock(block.id, e.target.value)}
+                      className="w-full bg-transparent text-xl italic text-gray-300 focus:outline-none resize-none"
+                      placeholder="Cita destacada..."
                       rows={Math.max(2, block.content.split('\n').length)}
                     />
                   </div>
                 )}
                 {block.type === 'image' && (
                   <div className="space-y-2">
-                    <input 
-                      value={block.content} 
-                      onChange={e => updateBlock(block.id, e.target.value)} 
-                      className="w-full bg-[#111] border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-indigo-500" 
-                      placeholder="URL de la imagen..." 
+                    <input
+                      value={block.content}
+                      onChange={e => updateBlock(block.id, e.target.value)}
+                      className="w-full bg-[#111] border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-indigo-500"
+                      placeholder="URL de la imagen..."
                     />
                     {block.content && (
                       <div className="relative rounded-xl overflow-hidden border border-white/10 mt-2">
                         <img src={block.content} alt="Block preview" className="w-full h-auto max-h-[500px] object-cover" referrerPolicy="no-referrer" />
                       </div>
                     )}
-                    <input 
-                      value={block.caption || ''} 
-                      onChange={e => updateBlockCaption(block.id, e.target.value)} 
-                      className="w-full bg-transparent text-center text-sm text-gray-500 focus:outline-none mt-1" 
-                      placeholder="Pie de foto (opcional)" 
+                    <input
+                      value={block.caption || ''}
+                      onChange={e => updateBlockCaption(block.id, e.target.value)}
+                      className="w-full bg-transparent text-center text-sm text-gray-500 focus:outline-none mt-1"
+                      placeholder="Pie de foto (opcional)"
                     />
                   </div>
                 )}
                 {block.type === 'list' && (
                   <div className="flex gap-2">
                     <span className="text-indigo-400 mt-1">•</span>
-                    <textarea 
-                      value={block.content} 
-                      onChange={e => updateBlock(block.id, e.target.value)} 
-                      className="w-full bg-transparent text-gray-300 text-lg focus:outline-none resize-none" 
-                      placeholder="Elemento de lista..." 
+                    <textarea
+                      value={block.content}
+                      onChange={e => updateBlock(block.id, e.target.value)}
+                      className="w-full bg-transparent text-gray-300 text-lg focus:outline-none resize-none"
+                      placeholder="Elemento de lista..."
                       rows={1}
                     />
                   </div>
@@ -240,7 +248,7 @@ export default function BlogEditor({ post, onSave, onCancel, currentUser }: Blog
         </div>
 
         {/* Add Block Controls */}
-        <div className="flex justify-center gap-2 mt-8 py-8 border-t border-white/10 border-dashed">
+        <div className="flex justify-center gap-2 mt-8 py-16 border-t border-white/10 border-dashed mb-32">
           <button onClick={() => addBlock('paragraph')} className="p-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition flex flex-col items-center gap-1 text-xs">
             <AlignLeft className="w-5 h-5" /> Texto
           </button>

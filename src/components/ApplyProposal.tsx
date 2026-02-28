@@ -115,8 +115,7 @@ export default function ApplyProposal({
                                 <input
                                     type="url"
                                     name="portfolio"
-                                    required
-                                    placeholder="https://tuportafolio.com"
+                                    placeholder="https://tuportafolio.com (Opcional)"
                                     className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition"
                                 />
                             </div>

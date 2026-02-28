@@ -8,9 +8,10 @@ interface ProfileProps {
   onUpdateUser?: (user: User) => void;
   isOwnProfile?: boolean;
   startConversation?: (userId: string, userName: string) => void;
+  onBack?: () => void;
 }
 
-export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true, startConversation }: ProfileProps) {
+export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true, startConversation, onBack }: ProfileProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<User>(currentUser);
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -24,8 +25,19 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
     if (formData.description && formData.description.length > 50) score += 20;
     if (formData.skills && formData.skills.length > 0) score += 10;
     if (formData.portfolio && formData.portfolio.length > 0) score += 20;
-    if (formData.socialLinks && Object.values(formData.socialLinks).some(l => l)) score += 10;
-    if (formData.clients && formData.clients.length > 0) score += 10;
+
+    // Check connected socials for validation
+    let socialBonus = 0;
+    if (formData.socialLinks) {
+      if (formData.socialLinks.youtube) socialBonus += 5;
+      if (formData.socialLinks.tiktok) socialBonus += 5;
+      if (formData.socialLinks.instagram) socialBonus += 5;
+      if (formData.socialLinks.linkedin) socialBonus += 2;
+      if (formData.socialLinks.website) socialBonus += 3;
+    }
+    score += Math.min(socialBonus, 15); // Max 15 points for social linking
+
+    if (formData.clients && formData.clients.length > 0) score += 5;
     if (formData.categories && formData.categories.length > 0) score += 10;
     return Math.min(score, 100);
   };
@@ -173,6 +185,14 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
       )}
 
       <div className="bg-[#111111] rounded-3xl border border-white/5 overflow-hidden shadow-2xl relative">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="absolute top-4 left-4 z-20 bg-black/50 hover:bg-black/80 text-white rounded-full p-2 backdrop-blur-md transition flex items-center gap-2 pr-4 border border-white/10"
+          >
+            <X className="w-5 h-5" /> <span className="text-sm font-medium">Volver</span>
+          </button>
+        )}
         {/* Cover / Header Background */}
         <div className="h-48 bg-gradient-to-r from-indigo-900/50 to-purple-900/50 relative">
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=80')] opacity-20 bg-cover bg-center"></div>
@@ -237,8 +257,8 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                   <div className="flex items-center gap-3 flex-wrap">
                     <p className="text-indigo-400 font-medium text-lg">{formData.specialty || (formData.type === 'creator' ? 'Creador de Contenido' : 'Freelancer')}</p>
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider border ${formData.type === 'creator'
-                        ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
-                        : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                      ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                      : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
                       }`}>
                       {formData.type === 'creator' ? '🎬 Creador' : '💼 Freelancer'}
                     </span>
@@ -608,21 +628,42 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
 
               {/* Socials */}
               <div className="bg-[#1a1a1a] rounded-2xl p-6 border border-white/5">
-                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Redes Sociales</h3>
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Redes Sociales (Para Validación de Perfil)</h3>
 
                 <div className="space-y-4">
-                  {/* YouTube */}
+                  {/* YouTube / Google */}
                   <div className="group">
                     {isEditing ? (
-                      <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5 focus-within:border-red-500/50 transition-colors">
-                        <Youtube className="w-5 h-5 text-red-500 shrink-0" />
-                        <input
-                          type="text"
-                          value={formData.socialLinks?.youtube || ''}
-                          onChange={(e) => handleSocialChange('youtube', e.target.value)}
-                          placeholder="Canal de YouTube"
-                          className="bg-transparent border-none text-sm text-white w-full focus:outline-none"
-                        />
+                      <div className="flex items-center justify-between bg-black/20 p-3 rounded-xl border border-white/5">
+                        <div className="flex items-center gap-3">
+                          <Youtube className="w-5 h-5 text-red-500 shrink-0" />
+                          <span className="text-sm text-white font-medium">YouTube</span>
+                        </div>
+                        {formData.socialLinks?.youtube ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-green-400 font-bold">Conectado</span>
+                            <button
+                              onClick={() => handleSocialChange('youtube', '')}
+                              className="text-xs text-red-400 hover:text-red-300"
+                            >
+                              Desconectar
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const { supabase } = await import('../lib/supabase');
+                              await supabase.auth.signInWithOAuth({
+                                provider: 'google',
+                                options: { redirectTo: window.location.origin }
+                              });
+                            }}
+                            className="text-xs bg-red-600/20 hover:bg-red-600/30 text-red-400 px-3 py-1.5 rounded-lg transition-colors font-bold"
+                          >
+                            Conectar
+                          </button>
+                        )}
                       </div>
                     ) : (
                       formData.socialLinks?.youtube && (
@@ -630,7 +671,8 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                           <div className="p-2 bg-red-500/20 rounded-lg text-red-500 group-hover:scale-110 transition-transform">
                             <Youtube className="w-5 h-5" />
                           </div>
-                          <span className="font-medium text-gray-300 group-hover:text-white">YouTube</span>
+                          <span className="font-medium text-gray-300 group-hover:text-white">YouTube Vinculado</span>
+                          <CheckCircle className="w-4 h-4 text-green-500 ml-auto" />
                         </a>
                       )
                     )}
@@ -639,15 +681,30 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                   {/* TikTok */}
                   <div className="group">
                     {isEditing ? (
-                      <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5 focus-within:border-pink-500/50 transition-colors">
-                        <Video className="w-5 h-5 text-pink-500 shrink-0" />
-                        <input
-                          type="text"
-                          value={formData.socialLinks?.tiktok || ''}
-                          onChange={(e) => handleSocialChange('tiktok', e.target.value)}
-                          placeholder="Perfil de TikTok"
-                          className="bg-transparent border-none text-sm text-white w-full focus:outline-none"
-                        />
+                      <div className="flex items-center justify-between bg-black/20 p-3 rounded-xl border border-white/5">
+                        <div className="flex items-center gap-3">
+                          <Video className="w-5 h-5 text-pink-500 shrink-0" />
+                          <span className="text-sm text-white font-medium">TikTok</span>
+                        </div>
+                        {formData.socialLinks?.tiktok ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-green-400 font-bold">Conectado</span>
+                            <button
+                              onClick={() => handleSocialChange('tiktok', '')}
+                              className="text-xs text-red-400 hover:text-red-300"
+                            >
+                              Desconectar
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => alert("La integración con TikTok OAuth estará disponible pronto.")}
+                            className="text-xs bg-pink-600/20 hover:bg-pink-600/30 text-pink-400 px-3 py-1.5 rounded-lg transition-colors font-bold"
+                          >
+                            Conectar (Próximamente)
+                          </button>
+                        )}
                       </div>
                     ) : (
                       formData.socialLinks?.tiktok && (
@@ -655,7 +712,8 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                           <div className="p-2 bg-pink-500/20 rounded-lg text-pink-500 group-hover:scale-110 transition-transform">
                             <Video className="w-5 h-5" />
                           </div>
-                          <span className="font-medium text-gray-300 group-hover:text-white">TikTok</span>
+                          <span className="font-medium text-gray-300 group-hover:text-white">TikTok Vinculado</span>
+                          <CheckCircle className="w-4 h-4 text-green-500 ml-auto" />
                         </a>
                       )
                     )}
@@ -664,15 +722,30 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                   {/* Instagram */}
                   <div className="group">
                     {isEditing ? (
-                      <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5 focus-within:border-purple-500/50 transition-colors">
-                        <Instagram className="w-5 h-5 text-purple-500 shrink-0" />
-                        <input
-                          type="text"
-                          value={formData.socialLinks?.instagram || ''}
-                          onChange={(e) => handleSocialChange('instagram', e.target.value)}
-                          placeholder="Perfil de Instagram"
-                          className="bg-transparent border-none text-sm text-white w-full focus:outline-none"
-                        />
+                      <div className="flex items-center justify-between bg-black/20 p-3 rounded-xl border border-white/5">
+                        <div className="flex items-center gap-3">
+                          <Instagram className="w-5 h-5 text-purple-500 shrink-0" />
+                          <span className="text-sm text-white font-medium">Instagram</span>
+                        </div>
+                        {formData.socialLinks?.instagram ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-green-400 font-bold">Conectado</span>
+                            <button
+                              onClick={() => handleSocialChange('instagram', '')}
+                              className="text-xs text-red-400 hover:text-red-300"
+                            >
+                              Desconectar
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => alert("La integración con Instagram OAuth estará disponible pronto.")}
+                            className="text-xs bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 px-3 py-1.5 rounded-lg transition-colors font-bold"
+                          >
+                            Conectar (Próximamente)
+                          </button>
+                        )}
                       </div>
                     ) : (
                       formData.socialLinks?.instagram && (
@@ -680,7 +753,8 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                           <div className="p-2 bg-purple-500/20 rounded-lg text-purple-500 group-hover:scale-110 transition-transform">
                             <Instagram className="w-5 h-5" />
                           </div>
-                          <span className="font-medium text-gray-300 group-hover:text-white">Instagram</span>
+                          <span className="font-medium text-gray-300 group-hover:text-white">Instagram Vinculado</span>
+                          <CheckCircle className="w-4 h-4 text-green-500 ml-auto" />
                         </a>
                       )
                     )}
@@ -689,23 +763,23 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                   {/* LinkedIn / Website (Optional extras) */}
                   {isEditing && (
                     <>
-                      <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5 focus-within:border-blue-500/50 transition-colors">
+                      <div className="flex items-center gap-2 bg-black/20 p-2 rounded-xl border border-white/5 focus-within:border-blue-500/50 transition-colors mt-6 pt-4 border-t border-white/10">
                         <Linkedin className="w-5 h-5 text-blue-500 shrink-0" />
                         <input
                           type="text"
                           value={formData.socialLinks?.linkedin || ''}
                           onChange={(e) => handleSocialChange('linkedin', e.target.value)}
-                          placeholder="Perfil de LinkedIn"
+                          placeholder="Perfil de LinkedIn (Manual)"
                           className="bg-transparent border-none text-sm text-white w-full focus:outline-none"
                         />
                       </div>
-                      <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5 focus-within:border-green-500/50 transition-colors">
+                      <div className="flex items-center gap-2 bg-black/20 p-2 rounded-xl border border-white/5 focus-within:border-green-500/50 transition-colors">
                         <Globe className="w-5 h-5 text-green-500 shrink-0" />
                         <input
                           type="text"
                           value={formData.socialLinks?.website || ''}
                           onChange={(e) => handleSocialChange('website', e.target.value)}
-                          placeholder="Sitio Web Personal"
+                          placeholder="Sitio Web Personal (Manual)"
                           className="bg-transparent border-none text-sm text-white w-full focus:outline-none"
                         />
                       </div>
@@ -714,8 +788,8 @@ export default function Profile({ currentUser, onUpdateUser, isOwnProfile = true
                 </div>
 
                 {!isEditing && !formData.socialLinks?.youtube && !formData.socialLinks?.tiktok && !formData.socialLinks?.instagram && (
-                  <div className="text-center py-8 text-gray-500 text-sm">
-                    No hay redes sociales vinculadas.
+                  <div className="text-center py-8 text-gray-500 text-sm border border-white/5 rounded-xl bg-white/5">
+                    No hay redes sociales vinculadas para validar este perfil.
                   </div>
                 )}
               </div>
